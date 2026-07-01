@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# IMPORTANT: real student data must never be committed.
+# The repo contains only synthetic sample data.
+/private-data/
+*.students.json
