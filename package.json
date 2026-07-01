@@ -1,0 +1,19 @@
+{
+  "name": "namedeck-prototype",
+  "version": "1.0.0",
+  "description": "Web prototype: flashcards to help teachers learn student names",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "build": "node build.js",
+    "test": "node test/core.test.js && node test/render.smoke.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "jsdom": "^29.1.1"
+  }
+}
