@@ -1,36 +1,46 @@
-// roster.js — REAL public figures (sample data for the prototype).
+// roster.js — real squad sample data: USA Men's National Team, FIFA World Cup 2026.
 //
-// These are actual, long-public historical figures. Their names are public facts and
-// their portraits are public domain. Photos are NOT bundled: at runtime the app fetches
-// each person's current portrait from Wikipedia's REST API (see app.js). If a photo
-// can't load, the app falls back to a generated avatar (avatar.js).
+// Senior national-team players — public adult figures (no minors). Their names are
+// public facts. Photos are NOT bundled: at runtime the app fetches each player's
+// portrait from Wikipedia's REST API (see app.js). Wikipedia disallows unlicensed
+// photos of living people, so those portraits are freely licensed. If a portrait can't
+// load, the app falls back to a generated avatar (avatar.js).
 //
-// Only long-deceased public figures are used on purpose — no private individuals and
-// no minors. In the real product this array becomes a school-authorized roster of
-// students, stored locally on the teacher's device.
+// In the real product this array becomes a school-authorized student roster, stored
+// locally on the teacher's device.
 //
 //   preferredName the name you're quizzed on
 //   wiki          Wikipedia article title, used to fetch the portrait at runtime
-//   role, years   shown after the name is revealed
+//   position/number shown after the name is revealed
 //   avatarSeed    offline fallback avatar
 
 window.NameDeck = window.NameDeck || {};
 
 NameDeck.roster = [
-  { id: 'f01', preferredName: 'Albert Einstein',       wiki: 'Albert_Einstein',        role: 'Physicist',            years: '1879–1955', avatarSeed: 'einstein' },
-  { id: 'f02', preferredName: 'Marie Curie',           wiki: 'Marie_Curie',            role: 'Physicist & chemist',  years: '1867–1934', avatarSeed: 'curie' },
-  { id: 'f03', preferredName: 'Abraham Lincoln',       wiki: 'Abraham_Lincoln',        role: 'US President',         years: '1809–1865', avatarSeed: 'lincoln' },
-  { id: 'f04', preferredName: 'Charles Darwin',        wiki: 'Charles_Darwin',         role: 'Naturalist',           years: '1809–1882', avatarSeed: 'darwin' },
-  { id: 'f05', preferredName: 'Nikola Tesla',          wiki: 'Nikola_Tesla',           role: 'Inventor',             years: '1856–1943', avatarSeed: 'tesla' },
-  { id: 'f06', preferredName: 'Mahatma Gandhi',        wiki: 'Mahatma_Gandhi',         role: 'Independence leader',  years: '1869–1948', avatarSeed: 'gandhi' },
-  { id: 'f07', preferredName: 'Vincent van Gogh',      wiki: 'Vincent_van_Gogh',       role: 'Painter',              years: '1853–1890', avatarSeed: 'vangogh' },
-  { id: 'f08', preferredName: 'Amelia Earhart',        wiki: 'Amelia_Earhart',         role: 'Aviator',              years: '1897–1937', avatarSeed: 'earhart' },
-  { id: 'f09', preferredName: 'Mark Twain',            wiki: 'Mark_Twain',             role: 'Author',               years: '1835–1910', avatarSeed: 'twain' },
-  { id: 'f10', preferredName: 'Ludwig van Beethoven',  wiki: 'Ludwig_van_Beethoven',   role: 'Composer',             years: '1770–1827', avatarSeed: 'beethoven' },
-  { id: 'f11', preferredName: 'Frederick Douglass',    wiki: 'Frederick_Douglass',     role: 'Abolitionist',         years: '1818–1895', avatarSeed: 'douglass' },
-  { id: 'f12', preferredName: 'Florence Nightingale',  wiki: 'Florence_Nightingale',   role: 'Nursing pioneer',      years: '1820–1910', avatarSeed: 'nightingale' },
-  { id: 'f13', preferredName: 'Ada Lovelace',          wiki: 'Ada_Lovelace',           role: 'Mathematician',        years: '1815–1852', avatarSeed: 'lovelace' },
-  { id: 'f14', preferredName: 'Sojourner Truth',       wiki: 'Sojourner_Truth',        role: 'Abolitionist',         years: 'c.1797–1883', avatarSeed: 'truth' },
-  { id: 'f15', preferredName: 'Leonardo da Vinci',     wiki: 'Leonardo_da_Vinci',      role: 'Polymath',             years: '1452–1519', avatarSeed: 'davinci' },
-  { id: 'f16', preferredName: 'Wolfgang Amadeus Mozart', wiki: 'Wolfgang_Amadeus_Mozart', role: 'Composer',          years: '1756–1791', avatarSeed: 'mozart' },
+  { id: 'u01', preferredName: 'Matt Turner',        wiki: 'Matt_Turner_(soccer)',   position: 'Goalkeeper', number: 1,  avatarSeed: 'turner' },
+  { id: 'u02', preferredName: 'Matt Freese',        wiki: 'Matt_Freese',            position: 'Goalkeeper', number: 24, avatarSeed: 'freese' },
+  { id: 'u03', preferredName: 'Chris Brady',        wiki: 'Chris_Brady_(soccer)',   position: 'Goalkeeper', number: 25, avatarSeed: 'brady' },
+  { id: 'u04', preferredName: 'Sergiño Dest',       wiki: 'Sergiño_Dest',           position: 'Defender',   number: 2,  avatarSeed: 'dest' },
+  { id: 'u05', preferredName: 'Chris Richards',     wiki: 'Chris_Richards_(soccer)',position: 'Defender',   number: 3,  avatarSeed: 'richards' },
+  { id: 'u06', preferredName: 'Antonee Robinson',   wiki: 'Antonee_Robinson',       position: 'Defender',   number: 5,  avatarSeed: 'arobinson' },
+  { id: 'u07', preferredName: 'Auston Trusty',      wiki: 'Auston_Trusty',          position: 'Defender',   number: 6,  avatarSeed: 'trusty' },
+  { id: 'u08', preferredName: 'Miles Robinson',     wiki: 'Miles_Robinson_(soccer)',position: 'Defender',   number: 12, avatarSeed: 'mrobinson' },
+  { id: 'u09', preferredName: 'Tim Ream',           wiki: 'Tim_Ream',               position: 'Defender',   number: 13, avatarSeed: 'ream' },
+  { id: 'u10', preferredName: 'Alex Freeman',       wiki: 'Alex_Freeman_(soccer)',  position: 'Defender',   number: 16, avatarSeed: 'freeman' },
+  { id: 'u11', preferredName: 'Max Arfsten',        wiki: 'Max_Arfsten',            position: 'Defender',   number: 18, avatarSeed: 'arfsten' },
+  { id: 'u12', preferredName: 'Mark McKenzie',      wiki: 'Mark_McKenzie_(soccer)', position: 'Defender',   number: 22, avatarSeed: 'mckenzie' },
+  { id: 'u13', preferredName: 'Joe Scally',         wiki: 'Joe_Scally',             position: 'Defender',   number: 23, avatarSeed: 'scally' },
+  { id: 'u14', preferredName: 'Tyler Adams',        wiki: 'Tyler_Adams_(soccer)',   position: 'Midfielder', number: 4,  avatarSeed: 'adams' },
+  { id: 'u15', preferredName: 'Gio Reyna',          wiki: 'Giovanni_Reyna',         position: 'Midfielder', number: 7,  avatarSeed: 'reyna' },
+  { id: 'u16', preferredName: 'Weston McKennie',    wiki: 'Weston_McKennie',        position: 'Midfielder', number: 8,  avatarSeed: 'mckennie' },
+  { id: 'u17', preferredName: 'Sebastian Berhalter',wiki: 'Sebastian_Berhalter',    position: 'Midfielder', number: 14, avatarSeed: 'berhalter' },
+  { id: 'u18', preferredName: 'Cristian Roldan',    wiki: 'Cristian_Roldan',        position: 'Midfielder', number: 15, avatarSeed: 'roldan' },
+  { id: 'u19', preferredName: 'Malik Tillman',      wiki: 'Malik_Tillman',          position: 'Midfielder', number: 17, avatarSeed: 'tillman' },
+  { id: 'u20', preferredName: 'Christian Pulisic',  wiki: 'Christian_Pulisic',      position: 'Forward',    number: 10, avatarSeed: 'pulisic' },
+  { id: 'u21', preferredName: 'Brenden Aaronson',   wiki: 'Brenden_Aaronson',       position: 'Forward',    number: 11, avatarSeed: 'aaronson' },
+  { id: 'u22', preferredName: 'Folarin Balogun',    wiki: 'Folarin_Balogun',        position: 'Forward',    number: 20, avatarSeed: 'balogun' },
+  { id: 'u23', preferredName: 'Ricardo Pepi',       wiki: 'Ricardo_Pepi',           position: 'Forward',    number: 9,  avatarSeed: 'pepi' },
+  { id: 'u24', preferredName: 'Tim Weah',           wiki: 'Tim_Weah',               position: 'Forward',    number: 21, avatarSeed: 'weah' },
+  { id: 'u25', preferredName: 'Haji Wright',        wiki: 'Haji_Wright',            position: 'Forward',    number: 19, avatarSeed: 'wright' },
+  { id: 'u26', preferredName: 'Alejandro Zendejas', wiki: 'Alejandro_Zendejas',     position: 'Forward',    number: 26, avatarSeed: 'zendejas' },
 ];

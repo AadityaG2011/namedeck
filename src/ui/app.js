@@ -23,7 +23,7 @@
     app.innerHTML =
       '<div class="screen">' +
         '<div class="brand">NameDeck</div>' +
-        '<div class="subtitle">Look at the face, then recall the name</div>' +
+        '<div class="subtitle">USMNT · World Cup 2026 squad</div>' +
         '<div class="control">' +
           '<label>Reveal name after <b id="delayVal">' + delay + 's</b></label>' +
           '<input id="delay" type="range" min="1" max="10" step="1" value="' + delay + '" />' +
@@ -90,7 +90,7 @@
     const p = current;
     document.querySelector('#nameSlot').innerHTML =
       '<div class="name">' + p.preferredName + '</div>' +
-      '<div class="meta">' + p.role + ' · ' + p.years + '</div>';
+      '<div class="meta">#' + p.number + ' · ' + p.position + '</div>';
   }
 
   function revealNow() { reveal(); }

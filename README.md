@@ -16,11 +16,11 @@ preserved in this repo's Git history for when we add them back).
 - The real product is **local-first**: photos live encrypted on the teacher's device
   and auto-delete at term end.
 - **No facial recognition. No biometrics.** The app only *displays* an image.
-- This prototype uses **real, long-deceased public figures** (e.g. Einstein, Curie,
-  Lincoln). Their names are public facts and their portraits are public domain. Photos
-  are **not bundled** — the app fetches each portrait from **Wikipedia's REST API at
-  runtime**, so no images are committed. If a portrait can't load, it falls back to a
-  generated avatar. Only long-public adults are used — no private individuals, no minors.
+- This prototype uses the **USA Men's National Team (World Cup 2026) squad** — senior,
+  adult public figures (no minors). Their names are public facts. Photos are **not
+  bundled**: the app fetches each player's portrait from **Wikipedia's REST API at
+  runtime**, and Wikipedia disallows unlicensed photos of living people, so those
+  portraits are freely licensed. If one can't load, it falls back to a generated avatar.
   In the real product this becomes a school-authorized student roster kept on-device.
 
 ## How to run
@@ -34,7 +34,7 @@ python3 -m http.server 8000   # then open http://localhost:8000/
 ## Structure
 ```
 src/
-  data/roster.js    # real public figures (name + Wikipedia title)
+  data/roster.js    # USMNT 2026 squad (name, number, position, Wikipedia title)
   core/avatar.js    # generated-avatar fallback when a portrait can't load
   ui/app.js         # the one-mode UI (web-only; rewritten in SwiftUI later)
 index.html          # dev entry
