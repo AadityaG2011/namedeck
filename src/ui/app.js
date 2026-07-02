@@ -50,7 +50,17 @@
   function showCard(p) {
     current = p;
     revealed = false;
-    document.querySelector('#avatar').innerHTML = ND.avatar(p.avatarSeed, 220);
+    const av = document.querySelector('#avatar');
+    av.innerHTML = '';
+    // Real photo, loaded from the web at runtime. If it fails (offline / blocked),
+    // fall back to the procedurally generated avatar so the app still works.
+    const img = document.createElement('img');
+    img.className = 'photo';
+    img.alt = 'student photo';
+    img.width = 220; img.height = 220;
+    img.onerror = function () { av.innerHTML = ND.avatar(p.avatarSeed, 220); };
+    img.src = p.photo;
+    av.appendChild(img);
     document.querySelector('#nameSlot').innerHTML = '<div class="waiting">tap or wait…</div>';
     arm();
   }

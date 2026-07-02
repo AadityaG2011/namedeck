@@ -17,7 +17,7 @@ const nameShown = function () { return !!doc.querySelector('.name'); };
 
 (async function () {
   // Initial render: photo present, name hidden, delay control at default 3s.
-  ok('avatar svg is shown', !!doc.querySelector('.avatar svg'));
+  ok('photo (or fallback) is shown', !!doc.querySelector('.avatar img, .avatar svg'));
   ok('name hidden initially', !nameShown());
   ok('delay control present', !!doc.querySelector('#delay'));
   ok('default delay is 3s', doc.querySelector('#delayVal').textContent === '3s');
@@ -29,7 +29,7 @@ const nameShown = function () { return !!doc.querySelector('.name'); };
   // Next student: name hidden again, avatar still present.
   doc.querySelector('#next').click();
   ok('next hides the name again', !nameShown());
-  ok('next keeps an avatar', !!doc.querySelector('.avatar svg'));
+  ok('next keeps an avatar', !!doc.querySelector('.avatar img, .avatar svg'));
 
   // Change the delay control; label updates.
   const slider = doc.querySelector('#delay');

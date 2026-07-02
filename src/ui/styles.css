@@ -25,7 +25,8 @@ body {
 .card { background: var(--card); border-radius: 22px; padding: 26px 20px 30px; text-align: center;
   box-shadow: 0 8px 26px rgba(20,30,60,.10); cursor: pointer; min-height: 320px; }
 .avatar { display: flex; justify-content: center; margin-bottom: 20px; }
-.avatar svg { border-radius: 20px; box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+.avatar svg, .avatar .photo { border-radius: 20px; box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+.avatar .photo { width: 220px; height: 220px; object-fit: cover; background: #e7ebf2; }
 .name-slot { min-height: 78px; display: flex; flex-direction: column; justify-content: center; }
 .waiting { color: #c3ccdb; font-size: 15px; letter-spacing: .3px; }
 .name { font-size: 30px; font-weight: 800; animation: pop .22s ease; }
