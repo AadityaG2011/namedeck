@@ -52,41 +52,41 @@ body {
   <div class="phone"><div id="app"></div></div>
   <script>
 /* ===== src/data/roster.js ===== */
-// roster.js — synthetic sample data for the prototype.
+// roster.js — REAL public figures (sample data for the prototype).
 //
-// INVENTED names for a fictional Under-23 squad, paired with placeholder face photos
-// loaded at runtime from a prototyping avatar service (i.pravatar.cc). Those are stand-in
-// faces of adults from a placeholder set — NOT real students, NOT minors. In the real
-// app, `photo` is replaced by a school-authorized student photo stored locally on the
-// teacher's device. `avatarSeed` is kept as an offline fallback (see avatar.js).
+// These are actual, long-public historical figures. Their names are public facts and
+// their portraits are public domain. Photos are NOT bundled: at runtime the app fetches
+// each person's current portrait from Wikipedia's REST API (see app.js). If a photo
+// can't load, the app falls back to a generated avatar (avatar.js).
 //
-//   photo: real image URL, loaded in the browser at runtime (nothing is bundled)
+// Only long-deceased public figures are used on purpose — no private individuals and
+// no minors. In the real product this array becomes a school-authorized roster of
+// students, stored locally on the teacher's device.
+//
+//   preferredName the name you're quizzed on
+//   wiki          Wikipedia article title, used to fetch the portrait at runtime
+//   role, years   shown after the name is revealed
+//   avatarSeed    offline fallback avatar
 
 window.NameDeck = window.NameDeck || {};
 
-function pravatar(n) { return 'https://i.pravatar.cc/300?img=' + n; }
-
 NameDeck.roster = [
-  { id: 'p01', preferredName: 'Mateo',    legalName: 'Mateo Alvarez',    phonetic: 'mah-TAY-oh',  position: 'FW', number: 9,  avatarSeed: 'mateo-alvarez',    photo: pravatar(11) },
-  { id: 'p02', preferredName: 'Kenji',    legalName: 'Kenji Nakamura',   phonetic: 'KEN-jee',     position: 'MF', number: 8,  avatarSeed: 'kenji-nakamura',   photo: pravatar(12) },
-  { id: 'p03', preferredName: 'Amara',    legalName: 'Amara Okafor',     phonetic: 'ah-MAH-rah',  position: 'DF', number: 4,  avatarSeed: 'amara-okafor',     photo: pravatar(5)  },
-  { id: 'p04', preferredName: 'Léo',      legalName: 'Léo Dubois',       phonetic: 'LAY-oh',      position: 'MF', number: 10, avatarSeed: 'leo-dubois',       photo: pravatar(13) },
-  { id: 'p05', preferredName: 'Saoirse',  legalName: 'Saoirse Byrne',    phonetic: 'SUR-shuh',    position: 'FW', number: 11, avatarSeed: 'saoirse-byrne',    photo: pravatar(9)  },
-  { id: 'p06', preferredName: 'Dmitri',   legalName: 'Dmitri Volkov',    phonetic: 'DMEE-tree',   position: 'GK', number: 1,  avatarSeed: 'dmitri-volkov',    photo: pravatar(14) },
-  { id: 'p07', preferredName: 'Chidi',    legalName: 'Chidi Eze',        phonetic: 'CHEE-dee',    position: 'DF', number: 3,  avatarSeed: 'chidi-eze',        photo: pravatar(15) },
-  { id: 'p08', preferredName: 'Ravi',     legalName: 'Ravi Chandran',    phonetic: 'RAH-vee',     position: 'MF', number: 6,  avatarSeed: 'ravi-chandran',    photo: pravatar(33) },
-  { id: 'p09', preferredName: 'Nikoloz',  legalName: 'Nikoloz Beridze',  phonetic: 'nee-koh-LOZ', position: 'DF', number: 5,  avatarSeed: 'nikoloz-beridze',  photo: pravatar(51) },
-  { id: 'p10', preferredName: 'Thabo',    legalName: 'Thabo Molefe',     phonetic: 'TAH-boh',     position: 'FW', number: 7,  avatarSeed: 'thabo-molefe',     photo: pravatar(59) },
-  { id: 'p11', preferredName: 'Youssef',  legalName: 'Youssef El-Amin',  phonetic: 'YOO-sef',     position: 'MF', number: 14, avatarSeed: 'youssef-elamin',   photo: pravatar(52) },
-  { id: 'p12', preferredName: 'Bjørn',    legalName: 'Bjørn Halvorsen',  phonetic: 'BYURN',       position: 'DF', number: 2,  avatarSeed: 'bjorn-halvorsen',  photo: pravatar(3)  },
-  { id: 'p13', preferredName: 'Iker',     legalName: 'Iker Etxeberria',  phonetic: 'EE-kair',     position: 'GK', number: 12, avatarSeed: 'iker-etxeberria',  photo: pravatar(53) },
-  { id: 'p14', preferredName: 'Tariq',    legalName: 'Tariq Hassan',     phonetic: 'TAH-rik',     position: 'FW', number: 17, avatarSeed: 'tariq-hassan',     photo: pravatar(60) },
-  { id: 'p15', preferredName: 'Joon-ho',  legalName: 'Kim Joon-ho',      phonetic: 'JOON-hoh',    position: 'MF', number: 16, avatarSeed: 'joonho-kim',       photo: pravatar(68) },
-  { id: 'p16', preferredName: 'Andrés',   legalName: 'Andrés Restrepo',  phonetic: 'ahn-DRESS',   position: 'DF', number: 15, avatarSeed: 'andres-restrepo',  photo: pravatar(56) },
-  { id: 'p17', preferredName: 'Emeka',    legalName: 'Emeka Nwosu',      phonetic: 'eh-MEH-kah',  position: 'MF', number: 18, avatarSeed: 'emeka-nwosu',      photo: pravatar(58) },
-  { id: 'p18', preferredName: 'Lucas',    legalName: 'Lucas Ferreira',   phonetic: 'LOO-kas',     position: 'FW', number: 19, avatarSeed: 'lucas-ferreira',   photo: pravatar(57) },
-  { id: 'p19', preferredName: 'Sana',     legalName: 'Sana Qureshi',     phonetic: 'SAH-nah',     position: 'DF', number: 20, avatarSeed: 'sana-qureshi',     photo: pravatar(44) },
-  { id: 'p20', preferredName: 'Milan',    legalName: 'Milan Novak',      phonetic: 'MEE-lahn',    position: 'GK', number: 13, avatarSeed: 'milan-novak',      photo: pravatar(54) },
+  { id: 'f01', preferredName: 'Albert Einstein',       wiki: 'Albert_Einstein',        role: 'Physicist',            years: '1879–1955', avatarSeed: 'einstein' },
+  { id: 'f02', preferredName: 'Marie Curie',           wiki: 'Marie_Curie',            role: 'Physicist & chemist',  years: '1867–1934', avatarSeed: 'curie' },
+  { id: 'f03', preferredName: 'Abraham Lincoln',       wiki: 'Abraham_Lincoln',        role: 'US President',         years: '1809–1865', avatarSeed: 'lincoln' },
+  { id: 'f04', preferredName: 'Charles Darwin',        wiki: 'Charles_Darwin',         role: 'Naturalist',           years: '1809–1882', avatarSeed: 'darwin' },
+  { id: 'f05', preferredName: 'Nikola Tesla',          wiki: 'Nikola_Tesla',           role: 'Inventor',             years: '1856–1943', avatarSeed: 'tesla' },
+  { id: 'f06', preferredName: 'Mahatma Gandhi',        wiki: 'Mahatma_Gandhi',         role: 'Independence leader',  years: '1869–1948', avatarSeed: 'gandhi' },
+  { id: 'f07', preferredName: 'Vincent van Gogh',      wiki: 'Vincent_van_Gogh',       role: 'Painter',              years: '1853–1890', avatarSeed: 'vangogh' },
+  { id: 'f08', preferredName: 'Amelia Earhart',        wiki: 'Amelia_Earhart',         role: 'Aviator',              years: '1897–1937', avatarSeed: 'earhart' },
+  { id: 'f09', preferredName: 'Mark Twain',            wiki: 'Mark_Twain',             role: 'Author',               years: '1835–1910', avatarSeed: 'twain' },
+  { id: 'f10', preferredName: 'Ludwig van Beethoven',  wiki: 'Ludwig_van_Beethoven',   role: 'Composer',             years: '1770–1827', avatarSeed: 'beethoven' },
+  { id: 'f11', preferredName: 'Frederick Douglass',    wiki: 'Frederick_Douglass',     role: 'Abolitionist',         years: '1818–1895', avatarSeed: 'douglass' },
+  { id: 'f12', preferredName: 'Florence Nightingale',  wiki: 'Florence_Nightingale',   role: 'Nursing pioneer',      years: '1820–1910', avatarSeed: 'nightingale' },
+  { id: 'f13', preferredName: 'Ada Lovelace',          wiki: 'Ada_Lovelace',           role: 'Mathematician',        years: '1815–1852', avatarSeed: 'lovelace' },
+  { id: 'f14', preferredName: 'Sojourner Truth',       wiki: 'Sojourner_Truth',        role: 'Abolitionist',         years: 'c.1797–1883', avatarSeed: 'truth' },
+  { id: 'f15', preferredName: 'Leonardo da Vinci',     wiki: 'Leonardo_da_Vinci',      role: 'Polymath',             years: '1452–1519', avatarSeed: 'davinci' },
+  { id: 'f16', preferredName: 'Wolfgang Amadeus Mozart', wiki: 'Wolfgang_Amadeus_Mozart', role: 'Composer',          years: '1756–1791', avatarSeed: 'mozart' },
 ];
 
 
@@ -246,20 +246,33 @@ window.NameDeck = window.NameDeck || {};
     nextCard();
   }
 
+  function loadPhoto(p, imgEl, fallback) {
+    // Fetch the person's public-domain portrait from Wikipedia's REST API at runtime.
+    // Fall back to a generated avatar on any failure (no network, blocked, no image).
+    if (typeof fetch !== 'function' || !p.wiki) { fallback(); return; }
+    fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(p.wiki))
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+      .then(function (data) {
+        if (current !== p) return; // a newer card is showing; ignore stale result
+        var src = data && data.thumbnail && data.thumbnail.source;
+        if (src) { imgEl.src = src; } else { fallback(); }
+      })
+      .catch(function () { if (current === p) fallback(); });
+  }
+
   function showCard(p) {
     current = p;
     revealed = false;
     const av = document.querySelector('#avatar');
     av.innerHTML = '';
-    // Real photo, loaded from the web at runtime. If it fails (offline / blocked),
-    // fall back to the procedurally generated avatar so the app still works.
     const img = document.createElement('img');
     img.className = 'photo';
-    img.alt = 'student photo';
+    img.alt = 'portrait';
     img.width = 220; img.height = 220;
-    img.onerror = function () { av.innerHTML = ND.avatar(p.avatarSeed, 220); };
-    img.src = p.photo;
+    const fallback = function () { if (current === p) av.innerHTML = ND.avatar(p.avatarSeed, 220); };
+    img.onerror = fallback;
     av.appendChild(img);
+    loadPhoto(p, img, fallback);
     document.querySelector('#nameSlot').innerHTML = '<div class="waiting">tap or wait…</div>';
     arm();
   }
@@ -276,8 +289,7 @@ window.NameDeck = window.NameDeck || {};
     const p = current;
     document.querySelector('#nameSlot').innerHTML =
       '<div class="name">' + p.preferredName + '</div>' +
-      (p.phonetic ? '<div class="phonetic">“' + p.phonetic + '”</div>' : '') +
-      '<div class="meta">#' + p.number + ' · ' + p.position + '</div>';
+      '<div class="meta">' + p.role + ' · ' + p.years + '</div>';
   }
 
   function revealNow() { reveal(); }

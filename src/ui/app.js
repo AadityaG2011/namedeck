@@ -47,20 +47,33 @@
     nextCard();
   }
 
+  function loadPhoto(p, imgEl, fallback) {
+    // Fetch the person's public-domain portrait from Wikipedia's REST API at runtime.
+    // Fall back to a generated avatar on any failure (no network, blocked, no image).
+    if (typeof fetch !== 'function' || !p.wiki) { fallback(); return; }
+    fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(p.wiki))
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+      .then(function (data) {
+        if (current !== p) return; // a newer card is showing; ignore stale result
+        var src = data && data.thumbnail && data.thumbnail.source;
+        if (src) { imgEl.src = src; } else { fallback(); }
+      })
+      .catch(function () { if (current === p) fallback(); });
+  }
+
   function showCard(p) {
     current = p;
     revealed = false;
     const av = document.querySelector('#avatar');
     av.innerHTML = '';
-    // Real photo, loaded from the web at runtime. If it fails (offline / blocked),
-    // fall back to the procedurally generated avatar so the app still works.
     const img = document.createElement('img');
     img.className = 'photo';
-    img.alt = 'student photo';
+    img.alt = 'portrait';
     img.width = 220; img.height = 220;
-    img.onerror = function () { av.innerHTML = ND.avatar(p.avatarSeed, 220); };
-    img.src = p.photo;
+    const fallback = function () { if (current === p) av.innerHTML = ND.avatar(p.avatarSeed, 220); };
+    img.onerror = fallback;
     av.appendChild(img);
+    loadPhoto(p, img, fallback);
     document.querySelector('#nameSlot').innerHTML = '<div class="waiting">tap or wait…</div>';
     arm();
   }
@@ -77,8 +90,7 @@
     const p = current;
     document.querySelector('#nameSlot').innerHTML =
       '<div class="name">' + p.preferredName + '</div>' +
-      (p.phonetic ? '<div class="phonetic">“' + p.phonetic + '”</div>' : '') +
-      '<div class="meta">#' + p.number + ' · ' + p.position + '</div>';
+      '<div class="meta">' + p.role + ' · ' + p.years + '</div>';
   }
 
   function revealNow() { reveal(); }

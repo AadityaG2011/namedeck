@@ -16,12 +16,12 @@ preserved in this repo's Git history for when we add them back).
 - The real product is **local-first**: photos live encrypted on the teacher's device
   and auto-delete at term end.
 - **No facial recognition. No biometrics.** The app only *displays* an image.
-- This prototype uses **invented names**. It shows **real placeholder face photos**
-  loaded at runtime from a prototyping service (i.pravatar.cc) — adult stand-in faces,
-  not real students and not minors. **Nothing is bundled into the repo — only URLs**,
-  so no image files are committed. If a photo can't load (offline/blocked), the app
-  falls back to a generated avatar. Real student data must never be committed
-  (see `.gitignore`).
+- This prototype uses **real, long-deceased public figures** (e.g. Einstein, Curie,
+  Lincoln). Their names are public facts and their portraits are public domain. Photos
+  are **not bundled** — the app fetches each portrait from **Wikipedia's REST API at
+  runtime**, so no images are committed. If a portrait can't load, it falls back to a
+  generated avatar. Only long-public adults are used — no private individuals, no minors.
+  In the real product this becomes a school-authorized student roster kept on-device.
 
 ## How to run
 **Easiest:** open `dist/index.html` in any browser (double-click it).
@@ -34,8 +34,8 @@ python3 -m http.server 8000   # then open http://localhost:8000/
 ## Structure
 ```
 src/
-  data/roster.js    # sample roster: invented names + real photo URLs
-  core/avatar.js    # generated-avatar fallback when a photo can't load
+  data/roster.js    # real public figures (name + Wikipedia title)
+  core/avatar.js    # generated-avatar fallback when a portrait can't load
   ui/app.js         # the one-mode UI (web-only; rewritten in SwiftUI later)
 index.html          # dev entry
 dist/index.html     # built single-file demo (open this)
