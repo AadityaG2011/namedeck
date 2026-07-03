@@ -49,18 +49,22 @@ const nameShown = function () { return !!doc.querySelector('.name'); };
   doc.querySelector('#closeSettings').click();
   ok('close button hides the settings panel', doc.querySelector('#settings').hidden);
 
-  // Tap the card to reveal the name early.
+  // First tap: reveal the name early.
   doc.querySelector('#card').click();
   ok('tapping card reveals the name', nameShown());
 
-  // With gap=1s, the card auto-advances to the next student (name hidden again).
-  await new Promise(function (r) { setTimeout(r, 1200); });
-  ok('auto-advances to next student (name hidden)', !nameShown());
-  ok('next keeps an avatar', !!doc.querySelector('.avatar img, .avatar svg'));
+  // Second tap: skip straight to the next student, no waiting for the gap timer.
+  doc.querySelector('#card').click();
+  ok('tapping again advances to the next student', !nameShown());
+  ok('advancing keeps an avatar', !!doc.querySelector('.avatar img, .avatar svg'));
 
   // The new card auto-reveals via the 1s reveal timer (no tap needed).
   await new Promise(function (r) { setTimeout(r, 1200); });
   ok('name auto-reveals after the delay', nameShown());
+
+  // ...and then auto-advances on its own after the 1s gap.
+  await new Promise(function (r) { setTimeout(r, 1200); });
+  ok('auto-advances to next student after the gap', !nameShown());
 
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);

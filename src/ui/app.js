@@ -1,7 +1,8 @@
 // app.js — MVP: one mode. Show a photo, reveal the name after a delay, then
 // auto-advance to the next student after a second delay. Both delays are adjustable
-// from a gear/settings panel. Tap the card to reveal the name early. State is
-// in-memory (a prototype choice). WEB-ONLY; rewritten in SwiftUI later.
+// from a gear/settings panel. Tap the card to reveal the name early; tap again to
+// skip to the next student. State is in-memory (a prototype choice).
+// WEB-ONLY; rewritten in SwiftUI later.
 
 (function () {
   const ND = window.NameDeck;
@@ -70,7 +71,7 @@
     });
     document.querySelector('#gear').addEventListener('click', toggleSettings);
     document.querySelector('#closeSettings').addEventListener('click', closeSettings);
-    document.querySelector('#card').addEventListener('click', revealNow);
+    document.querySelector('#card').addEventListener('click', onCardTap);
 
     nextCard();
   }
@@ -131,7 +132,8 @@
     armAdvance(); // once the name is up, wait `gap` then move to the next student automatically
   }
 
-  function revealNow() { reveal(); }
+  // Tap the card: first tap reveals the name, a second tap skips to the next student.
+  function onCardTap() { if (revealed) nextCard(); else reveal(); }
   function nextCard() { showCard(pick()); }
 
   render();
