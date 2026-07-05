@@ -23,9 +23,9 @@ const nameShown = function () { return !!doc.querySelector('.name'); };
   ok('gear button present', !!doc.querySelector('#gear'));
   ok('settings hidden initially', doc.querySelector('#settings').hidden);
   ok('reveal-delay control present', !!doc.querySelector('#delay'));
-  ok('default reveal delay is 3s', doc.querySelector('#delayVal').textContent === '3s');
+  ok('default reveal delay is 2s', doc.querySelector('#delayVal').textContent === '2s');
   ok('advance-gap control present', !!doc.querySelector('#gap'));
-  ok('default advance gap is 4s', doc.querySelector('#gapVal').textContent === '4s');
+  ok('default advance gap is 1s', doc.querySelector('#gapVal').textContent === '1s');
 
   // Removed features should be gone.
   ok('no "Next" button', !doc.querySelector('.btn.next'));

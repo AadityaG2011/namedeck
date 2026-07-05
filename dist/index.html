@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-<title>NameDeck — prototype</title>
+<title>NameDeck Prototype</title>
 <style>
 :root {
   --card: #ffffff; --ink: #1a2233; --muted: #7a869a; --accent: #5B8DEF; --line: #e7ebf2;
@@ -20,7 +20,8 @@ body {
   box-shadow: 0 24px 60px rgba(0,0,0,.45), inset 0 0 0 8px #000; overflow: hidden; min-height: 720px;
 }
 #app { padding: 12px; }
-.screen { position: relative; display: flex; flex-direction: column; min-height: 696px; }
+.screen { position: relative; display: flex; flex-direction: column; min-height: 696px;
+  padding-top: 56px; } /* room for the gear button above the card */
 
 /* Gear button — floats over the top-right corner of the card. */
 .gear {
@@ -58,7 +59,8 @@ body {
   width: 100%; height: 100%; border-radius: 16px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
 }
 .avatar .photo { object-fit: cover; background: #e7ebf2; }
-.name-slot { flex: 0 0 auto; min-height: 54px; display: flex; flex-direction: column;
+/* Fixed height so the image above doesn't shift when the name replaces the hint. */
+.name-slot { flex: 0 0 auto; height: 80px; display: flex; flex-direction: column;
   justify-content: center; padding: 8px 0 4px; }
 .waiting { color: #c3ccdb; font-size: 15px; letter-spacing: .3px; }
 .name { font-size: 30px; font-weight: 800; animation: pop .22s ease; }
@@ -235,8 +237,8 @@ window.NameDeck = window.NameDeck || {};
   const roster = ND.roster;
   const app = document.querySelector('#app');
 
-  let delay = 3;        // seconds before the name appears
-  let gap = 4;          // seconds the name stays up before advancing to the next student
+  let delay = 2;        // seconds before the name appears
+  let gap = 1;          // seconds the name stays up before advancing to the next student
   let current = null;   // current student
   let revealTimer = null;
   let advanceTimer = null;
@@ -354,7 +356,10 @@ window.NameDeck = window.NameDeck || {};
     revealed = true;
     if (revealTimer) { clearTimeout(revealTimer); revealTimer = null; }
     const p = current;
-    document.querySelector('#nameSlot').innerHTML = '<div class="name">' + p.preferredName + '</div>';
+    // Keep the "tap or wait…" hint below the name: the user can now tap or wait to advance.
+    document.querySelector('#nameSlot').innerHTML =
+      '<div class="name">' + p.preferredName + '</div>' +
+      '<div class="waiting">tap or wait…</div>';
     armAdvance(); // once the name is up, wait `gap` then move to the next student automatically
   }
 

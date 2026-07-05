@@ -9,8 +9,8 @@
   const roster = ND.roster;
   const app = document.querySelector('#app');
 
-  let delay = 3;        // seconds before the name appears
-  let gap = 4;          // seconds the name stays up before advancing to the next student
+  let delay = 2;        // seconds before the name appears
+  let gap = 1;          // seconds the name stays up before advancing to the next student
   let current = null;   // current student
   let revealTimer = null;
   let advanceTimer = null;
@@ -128,7 +128,10 @@
     revealed = true;
     if (revealTimer) { clearTimeout(revealTimer); revealTimer = null; }
     const p = current;
-    document.querySelector('#nameSlot').innerHTML = '<div class="name">' + p.preferredName + '</div>';
+    // Keep the "tap or wait…" hint below the name: the user can now tap or wait to advance.
+    document.querySelector('#nameSlot').innerHTML =
+      '<div class="name">' + p.preferredName + '</div>' +
+      '<div class="waiting">tap or wait…</div>';
     armAdvance(); // once the name is up, wait `gap` then move to the next student automatically
   }
 
