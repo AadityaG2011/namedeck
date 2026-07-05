@@ -12,6 +12,7 @@ const css = fs.readFileSync(path.join(root, 'src/ui/styles.css'), 'utf8');
 const jsFiles = [
   'src/data/roster.js',
   'src/core/avatar.js',
+  'src/core/roster-store.js',
   'src/ui/app.js',
 ];
 const js = jsFiles
