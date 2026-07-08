@@ -73,7 +73,12 @@ body {
 .hint { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0 0 10px; }
 #nameInput { width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px;
   font: inherit; resize: vertical; }
-#addNames { margin-top: 10px; }
+#addNames { width: 100%; margin-top: 10px; }
+.add-actions { display: flex; gap: 8px; margin-top: 8px; }
+.add-actions .btn { flex: 1; text-align: center; }
+.notice { margin: 10px 0 0; padding: 8px 10px; border-radius: 10px; font-size: 12.5px;
+  line-height: 1.45; color: #9a3412; background: #fdecdc; }
+.notice[hidden] { display: none; }
 
 .btn { border: none; border-radius: 12px; padding: 10px 14px; font: inherit; font-weight: 600;
   cursor: pointer; background: var(--card); color: var(--ink); box-shadow: 0 1px 4px rgba(20,30,60,.12); }

@@ -90,9 +90,16 @@
             '<button class="close" id="closeRoster" aria-label="Close roster">&times;</button>' +
           '</div>' +
           '<div class="sheet-body">' +
-            '<p class="hint">Paste or type student names, one per line. Add a photo to each below. No photo yet just shows a placeholder.</p>' +
+            '<p class="hint">Paste or type names (one per line), or Import Photos to create a student per photo — the file name becomes the name. Edit names and photos below.</p>' +
             '<textarea id="nameInput" rows="3" placeholder="Alex Rivera&#10;Jordan Lee&#10;John Smith"></textarea>' +
             '<button class="btn" id="addNames">Add Names</button>' +
+            '<div class="add-actions">' +
+              '<label class="btn" id="importPhotos">Import Photos' +
+                '<input type="file" id="photoImport" accept="image/*" multiple hidden /></label>' +
+              '<label class="btn" id="importFolder">Import Folder' +
+                '<input type="file" id="folderImport" accept="image/*" webkitdirectory multiple hidden /></label>' +
+            '</div>' +
+            '<p class="notice" id="storageNotice" hidden>Storage is full — new photos show now but may not be saved. Remove some students or use fewer/smaller photos.</p>' +
             '<div class="roster-list" id="rosterList"></div>' +
           '</div>' +
           '<div class="sheet-foot">' +
@@ -124,6 +131,8 @@
     document.querySelector('#closeRoster').addEventListener('click', closeRoster);
     document.querySelector('#useRoster').addEventListener('click', closeRoster);
     document.querySelector('#addNames').addEventListener('click', addNames);
+    document.querySelector('#photoImport').addEventListener('change', onImportPhotos);
+    document.querySelector('#folderImport').addEventListener('change', onImportFolder);
     document.querySelector('#clearRoster').addEventListener('click', clearRoster);
 
     // The roster list is re-rendered often, so listen once on the container (delegation).
@@ -171,6 +180,7 @@
     clearTimers();                                    // pause the deck while editing
     document.querySelector('#settings').hidden = true;
     document.querySelector('#nameInput').value = '';
+    showStorageNotice(false);
     renderList();
     document.querySelector('#rosterSheet').hidden = false;
   }
@@ -190,6 +200,56 @@
     });
     ta.value = '';
     if (added) { save(); renderList(); }
+  }
+
+  // Turn a photo's file name into a student name: "Will Smith.jpg" -> "Will Smith".
+  // Pure, portable logic — identical on iOS; only the *source* of the name differs.
+  function nameFromFilename(filename) {
+    var base = String(filename).replace(/^.*[\\/]/, '') // drop any folder path
+      .replace(/\.[^.]+$/, '');                          // drop the extension
+    base = base.replace(/_+/g, ' ')                      // underscores -> spaces
+      .replace(/\s*\(\d+\)\s*$/, '')                     // drop a " (1)" duplicate suffix
+      .replace(/\s+/g, ' ').trim();
+    return base || 'Student';
+  }
+
+  // SEAM 1 (file pick + read): on the web the OS file dialog hands us File objects here.
+  // On iOS this same entry point is fed by PhotosPicker / the document picker instead.
+  function onImportPhotos(e) {
+    importPhotos(e.target.files);
+    e.target.value = ''; // let the same files be re-picked later
+  }
+
+  // Folder picker (webkitdirectory) returns every file in the folder, so keep images only.
+  function onImportFolder(e) {
+    var imgs = Array.prototype.slice.call(e.target.files || []).filter(function (f) {
+      return /^image\//.test(f.type) || /\.(jpe?g|png|gif|webp|bmp|heic|heif|avif)$/i.test(f.name);
+    });
+    importPhotos(imgs);
+    e.target.value = '';
+  }
+
+  // Bulk import: one student per photo, name taken from the file name. Photos decode
+  // asynchronously, so the rows appear immediately and fill in as each finishes.
+  function importPhotos(files) {
+    var list = Array.prototype.slice.call(files || []);
+    if (!list.length) return;
+    var pending = list.length;
+    list.forEach(function (file) {
+      var name = nameFromFilename(file.name);
+      var student = { id: 'r' + (++seq), preferredName: name, photo: null, avatarSeed: name };
+      myRoster.push(student);
+      // SEAM 2 (image resize/encode): canvas on web, ImageIO/UIImage on iOS.
+      fileToPhoto(file, function (dataUrl) {
+        student.photo = dataUrl;
+        if (--pending === 0) {           // all decoded: persist once and refresh
+          var saved = save();            // SEAM 3 (storage): rosterStore adapter
+          renderList();
+          showStorageNotice(!saved);
+        }
+      });
+    });
+    renderList(); // show the new students right away (names + placeholder) while photos decode
   }
 
   function clearRoster() {
@@ -242,7 +302,12 @@
     if (!s) return;
     var file = e.target.files && e.target.files[0];
     if (!file) return;
-    fileToPhoto(file, function (dataUrl) { s.photo = dataUrl; save(); renderList(); });
+    fileToPhoto(file, function (dataUrl) {
+      s.photo = dataUrl;
+      var saved = save();
+      renderList();
+      showStorageNotice(!saved); // photos are the big items — warn if the store is full
+    });
   }
   function onListClick(e) {
     // Edit: unlock this row's name field so a mistyped name can be corrected.
@@ -279,24 +344,33 @@
     }
   }
 
-  function save() { ND.rosterStore.save(myRoster); }
+  function save() { return ND.rosterStore.save(myRoster); }
 
-  // Read an image file, downscale it, and hand back a compact JPEG data URL. Keeping
-  // photos small matters for on-device storage (and localStorage's tight quota).
+  function showStorageNotice(show) {
+    var n = document.querySelector('#storageNotice');
+    if (n) n.hidden = !show;
+  }
+
+  // Read an image file, downscale it, and hand back a JPEG data URL. The cap (1000px)
+  // is big enough to look sharp on a high-DPI card while staying small enough for
+  // on-device storage. Never upscales past the original (scale is clamped to 1).
   function fileToPhoto(file, cb) {
     var reader = new FileReader();
     reader.onload = function () {
       var img = new Image();
       img.onload = function () {
-        var max = 400;
+        var max = 1000;
         var scale = Math.min(1, max / Math.max(img.width, img.height));
         var w = Math.max(1, Math.round(img.width * scale));
         var h = Math.max(1, Math.round(img.height * scale));
         var canvas = document.createElement('canvas');
         canvas.width = w; canvas.height = h;
         try {
-          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-          cb(canvas.toDataURL('image/jpeg', 0.85));
+          var ctx = canvas.getContext('2d');
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, w, h);
+          cb(canvas.toDataURL('image/jpeg', 0.9));
         } catch (e) {
           cb(reader.result); // canvas unavailable — store the original
         }

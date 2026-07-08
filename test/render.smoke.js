@@ -110,6 +110,41 @@ const nameShown = function () { return !!doc.querySelector('.name'); };
   const shown = doc.querySelector('.name') && doc.querySelector('.name').textContent;
   ok('flashcard now shows a custom student name', expected.indexOf(shown) !== -1);
 
+  // --- Bulk photo import: one student per file, name derived from the filename ---
+  doc.querySelector('#rosterBtn').click(); // reopen the roster panel
+  ok('import photos control present', !!doc.querySelector('#photoImport'));
+  const beforeCount = doc.querySelectorAll('#rosterList .rrow').length;
+  const importer = doc.querySelector('#photoImport');
+  const files = [
+    new dom.window.File(['x'], 'Zoe Martin.jpg', { type: 'image/jpeg' }),
+    new dom.window.File(['y'], 'liam_okafor (1).png', { type: 'image/png' }),
+  ];
+  Object.defineProperty(importer, 'files', { value: files, configurable: true });
+  importer.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  const rowNames = Array.prototype.slice
+    .call(doc.querySelectorAll('#rosterList .rrow .rname'))
+    .map(function (n) { return n.value; });
+  ok('import adds one student per photo', doc.querySelectorAll('#rosterList .rrow').length === beforeCount + 2);
+  ok('import derives the name from the file name (spaces preserved)', rowNames.indexOf('Zoe Martin') !== -1);
+  ok('import cleans underscores and dup-suffix from the file name', rowNames.indexOf('liam okafor') !== -1);
+
+  // Import folder: grabs the whole folder but ignores non-image files.
+  ok('import folder control present', !!doc.querySelector('#folderImport'));
+  const folderInput = doc.querySelector('#folderImport');
+  const beforeFolder = doc.querySelectorAll('#rosterList .rrow').length;
+  const folderFiles = [
+    new dom.window.File(['a'], 'Ana Reyes.jpg', { type: 'image/jpeg' }),
+    new dom.window.File(['b'], 'notes.txt', { type: 'text/plain' }),
+  ];
+  Object.defineProperty(folderInput, 'files', { value: folderFiles, configurable: true });
+  folderInput.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  ok('import folder adds only the image file (skips notes.txt)',
+     doc.querySelectorAll('#rosterList .rrow').length === beforeFolder + 1);
+  const rowNames2 = Array.prototype.slice
+    .call(doc.querySelectorAll('#rosterList .rrow .rname'))
+    .map(function (n) { return n.value; });
+  ok('folder import derives the name from the file name', rowNames2.indexOf('Ana Reyes') !== -1);
+
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })();
