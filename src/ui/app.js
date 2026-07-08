@@ -2,15 +2,14 @@
 // next student. Delays are adjustable from the gear panel. Tap the card to reveal the
 // name early; tap again to skip ahead.
 //
-// Teachers can load their OWN roster from the roster panel: paste/type student names
-// and attach a photo to each. It's saved on-device (see roster-store.js) and used by
-// the flashcard instead of the sample squad. Students with no photo yet fall back to a
-// generated avatar, so a roster can be built names-first and photographed later.
-// State is in-memory + localStorage (a prototype choice). WEB-ONLY; SwiftUI later.
+// Teachers build their roster from the roster panel: paste/type student names and attach
+// a photo to each, or bulk-import photos. It's saved on-device (see roster-store.js).
+// Students with no photo yet fall back to a generated avatar, so a roster can be built
+// names-first and photographed later. Before any students are added, the deck shows an
+// empty state. State is in-memory + localStorage (a prototype choice). WEB-ONLY; SwiftUI later.
 
 (function () {
   var ND = window.NameDeck;
-  var sampleRoster = ND.roster;
   var app = document.querySelector('#app');
 
   var delay = 2;        // seconds before the name appears
@@ -48,11 +47,9 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  // The roster the flashcard actually draws from: the teacher's if they have one, else the sample.
-  function activeRoster() { return myRoster.length ? myRoster : sampleRoster; }
-
+  // Pick a student to quiz (only called when the roster is non-empty).
   function pick() {
-    var list = activeRoster();
+    var list = myRoster;
     var p;
     do { p = list[Math.floor(Math.random() * list.length)]; }
     while (list.length > 1 && current && p.id === current.id);
@@ -145,7 +142,7 @@
 
     document.querySelector('#card').addEventListener('click', onCardTap);
 
-    nextCard();
+    refreshDeck();
   }
 
   // ---- Settings panel ----
@@ -161,7 +158,7 @@
   }
   function closeSettings() {
     document.querySelector('#settings').hidden = true;
-    nextCard();                                        // resume with the chosen timings
+    refreshDeck();                                     // resume with the chosen timings
   }
   function resetSettings() {
     delay = DEFAULT_DELAY;
@@ -186,7 +183,7 @@
   }
   function closeRoster() {
     document.querySelector('#rosterSheet').hidden = true;
-    nextCard();                                       // rebuild the deck from the active roster
+    refreshDeck();                                    // rebuild the deck (card, or empty state)
   }
 
   function addNames() {
@@ -261,7 +258,7 @@
   function renderList() {
     var el = document.querySelector('#rosterList');
     if (!myRoster.length) {
-      el.innerHTML = '<div class="empty">No students yet — the sample squad is shown until you add some.</div>';
+      el.innerHTML = '<div class="empty">No students yet — add names or import photos above.</div>';
       return;
     }
     el.innerHTML = myRoster.map(function (s) {
@@ -382,18 +379,27 @@
   }
 
   // ---- Flashcard ----
-  function loadPhoto(p, imgEl, fallback) {
-    // Fetch the person's public-domain portrait from Wikipedia's REST API at runtime.
-    // Fall back to a generated avatar on any failure (no network, blocked, no image).
-    if (typeof fetch !== 'function' || !p.wiki) { fallback(); return; }
-    fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(p.wiki))
-      .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
-      .then(function (data) {
-        if (current !== p) return; // a newer card is showing; ignore stale result
-        var src = data && data.thumbnail && data.thumbnail.source;
-        if (src) { imgEl.src = src; } else { fallback(); }
-      })
-      .catch(function () { if (current === p) fallback(); });
+  // Rebuild the deck: a card if there are students, otherwise the empty state.
+  function refreshDeck() {
+    clearTimers();
+    if (myRoster.length) nextCard();
+    else showEmpty();
+  }
+
+  function showEmpty() {
+    current = null;
+    revealed = false;
+    document.querySelector('#avatar').innerHTML =
+      '<div class="empty-deck">' +
+        '<div class="empty-title">No students yet</div>' +
+        '<div class="empty-sub">Add your class to start studying their names.</div>' +
+        '<button class="btn primary" id="emptyAdd">Add roster</button>' +
+      '</div>';
+    document.querySelector('#nameSlot').innerHTML = '';
+    document.querySelector('#emptyAdd').addEventListener('click', function (ev) {
+      ev.stopPropagation(); // don't also trigger the card tap
+      openRoster();
+    });
   }
 
   function showCard(p) {
@@ -406,18 +412,11 @@
       if (current === p) av.innerHTML = ND.avatar(p.avatarSeed || p.preferredName, 320);
     };
     if (p.photo) {
-      // Teacher-supplied photo (a data URL): use it directly.
-      var direct = document.createElement('img');
-      direct.className = 'photo'; direct.alt = 'portrait';
-      direct.onerror = fallback;
-      direct.src = p.photo;
-      av.appendChild(direct);
-    } else if (p.wiki) {
       var img = document.createElement('img');
       img.className = 'photo'; img.alt = 'portrait';
       img.onerror = fallback;
+      img.src = p.photo;
       av.appendChild(img);
-      loadPhoto(p, img, fallback);
     } else {
       fallback(); // named student, no photo yet
     }

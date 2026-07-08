@@ -4,6 +4,14 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 <title>NameDeck — prototype</title>
+<meta name="theme-color" content="#0f1420" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" type="image/png" href="icon-192.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="NameDeck" />
 <style>
 :root {
   --card: #ffffff; --ink: #1a2233; --muted: #7a869a; --accent: #5B8DEF; --line: #e7ebf2;
@@ -52,6 +60,12 @@ body {
   box-shadow: 0 8px 26px rgba(20,30,60,.10); cursor: pointer;
 }
 .avatar { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+/* Empty state — shown in the card when no students have been added yet. */
+.empty-deck { display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 24px; text-align: center; }
+.empty-title { font-size: 20px; font-weight: 800; color: var(--ink); }
+.empty-sub { font-size: 14px; color: var(--muted); line-height: 1.5; max-width: 240px; }
+.empty-deck .btn { margin-top: 6px; }
 .avatar .photo, .avatar svg {
   width: 100%; height: 100%; border-radius: 16px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
 }
@@ -112,55 +126,6 @@ body {
 <body>
   <div class="phone"><div id="app"></div></div>
   <script>
-/* ===== src/data/roster.js ===== */
-// roster.js — real squad sample data: USA Men's National Team, FIFA World Cup 2026.
-//
-// Senior national-team players — public adult figures (no minors). Their names are
-// public facts. Photos are NOT bundled: at runtime the app fetches each player's
-// portrait from Wikipedia's REST API (see app.js). Wikipedia disallows unlicensed
-// photos of living people, so those portraits are freely licensed. If a portrait can't
-// load, the app falls back to a generated avatar (avatar.js).
-//
-// In the real product this array becomes a school-authorized student roster, stored
-// locally on the teacher's device.
-//
-//   preferredName the name you're quizzed on
-//   wiki          Wikipedia article title, used to fetch the portrait at runtime
-//   position/number shown after the name is revealed
-//   avatarSeed    offline fallback avatar
-
-window.NameDeck = window.NameDeck || {};
-
-NameDeck.roster = [
-  { id: 'u01', preferredName: 'Matt Turner',        wiki: 'Matt_Turner_(soccer)',   position: 'Goalkeeper', number: 1,  avatarSeed: 'turner' },
-  { id: 'u02', preferredName: 'Matt Freese',        wiki: 'Matt_Freese',            position: 'Goalkeeper', number: 24, avatarSeed: 'freese' },
-  { id: 'u03', preferredName: 'Chris Brady',        wiki: 'Chris_Brady_(soccer)',   position: 'Goalkeeper', number: 25, avatarSeed: 'brady' },
-  { id: 'u04', preferredName: 'Sergiño Dest',       wiki: 'Sergiño_Dest',           position: 'Defender',   number: 2,  avatarSeed: 'dest' },
-  { id: 'u05', preferredName: 'Chris Richards',     wiki: 'Chris_Richards_(soccer)',position: 'Defender',   number: 3,  avatarSeed: 'richards' },
-  { id: 'u06', preferredName: 'Antonee Robinson',   wiki: 'Antonee_Robinson',       position: 'Defender',   number: 5,  avatarSeed: 'arobinson' },
-  { id: 'u07', preferredName: 'Auston Trusty',      wiki: 'Auston_Trusty',          position: 'Defender',   number: 6,  avatarSeed: 'trusty' },
-  { id: 'u08', preferredName: 'Miles Robinson',     wiki: 'Miles_Robinson_(soccer)',position: 'Defender',   number: 12, avatarSeed: 'mrobinson' },
-  { id: 'u09', preferredName: 'Tim Ream',           wiki: 'Tim_Ream',               position: 'Defender',   number: 13, avatarSeed: 'ream' },
-  { id: 'u10', preferredName: 'Alex Freeman',       wiki: 'Alex_Freeman'                ,  position: 'Defender',   number: 16, avatarSeed: 'freeman' },
-  { id: 'u11', preferredName: 'Max Arfsten',        wiki: 'Max_Arfsten',            position: 'Defender',   number: 18, avatarSeed: 'arfsten' },
-  { id: 'u12', preferredName: 'Mark McKenzie',      wiki: 'Mark_McKenzie_(soccer,_born_1999)', position: 'Defender',   number: 22, avatarSeed: 'mckenzie' },
-  { id: 'u13', preferredName: 'Joe Scally',         wiki: 'Joe_Scally',             position: 'Defender',   number: 23, avatarSeed: 'scally' },
-  { id: 'u14', preferredName: 'Tyler Adams',        wiki: 'Tyler_Adams'                ,   position: 'Midfielder', number: 4,  avatarSeed: 'adams' },
-  { id: 'u15', preferredName: 'Gio Reyna',          wiki: 'Giovanni_Reyna',         position: 'Midfielder', number: 7,  avatarSeed: 'reyna' },
-  { id: 'u16', preferredName: 'Weston McKennie',    wiki: 'Weston_McKennie',        position: 'Midfielder', number: 8,  avatarSeed: 'mckennie' },
-  { id: 'u17', preferredName: 'Sebastian Berhalter',wiki: 'Sebastian_Berhalter',    position: 'Midfielder', number: 14, avatarSeed: 'berhalter' },
-  { id: 'u18', preferredName: 'Cristian Roldan',    wiki: 'Cristian_Roldan',        position: 'Midfielder', number: 15, avatarSeed: 'roldan' },
-  { id: 'u19', preferredName: 'Malik Tillman',      wiki: 'Malik_Tillman',          position: 'Midfielder', number: 17, avatarSeed: 'tillman' },
-  { id: 'u20', preferredName: 'Christian Pulisic',  wiki: 'Christian_Pulisic',      position: 'Forward',    number: 10, avatarSeed: 'pulisic' },
-  { id: 'u21', preferredName: 'Brenden Aaronson',   wiki: 'Brenden_Aaronson',       position: 'Forward',    number: 11, avatarSeed: 'aaronson' },
-  { id: 'u22', preferredName: 'Folarin Balogun',    wiki: 'Folarin_Balogun',        position: 'Forward',    number: 20, avatarSeed: 'balogun' },
-  { id: 'u23', preferredName: 'Ricardo Pepi',       wiki: 'Ricardo_Pepi',           position: 'Forward',    number: 9,  avatarSeed: 'pepi' },
-  { id: 'u24', preferredName: 'Tim Weah',           wiki: 'Tim_Weah',               position: 'Forward',    number: 21, avatarSeed: 'weah' },
-  { id: 'u25', preferredName: 'Haji Wright',        wiki: 'Haji_Wright',            position: 'Forward',    number: 19, avatarSeed: 'wright' },
-  { id: 'u26', preferredName: 'Alejandro Zendejas', wiki: 'Alejandro_Zendejas',     position: 'Forward',    number: 26, avatarSeed: 'zendejas' },
-];
-
-
 /* ===== src/core/avatar.js ===== */
 // avatar.js — deterministic procedural avatars.
 //
@@ -313,15 +278,14 @@ window.NameDeck = window.NameDeck || {};
 // next student. Delays are adjustable from the gear panel. Tap the card to reveal the
 // name early; tap again to skip ahead.
 //
-// Teachers can load their OWN roster from the roster panel: paste/type student names
-// and attach a photo to each. It's saved on-device (see roster-store.js) and used by
-// the flashcard instead of the sample squad. Students with no photo yet fall back to a
-// generated avatar, so a roster can be built names-first and photographed later.
-// State is in-memory + localStorage (a prototype choice). WEB-ONLY; SwiftUI later.
+// Teachers build their roster from the roster panel: paste/type student names and attach
+// a photo to each, or bulk-import photos. It's saved on-device (see roster-store.js).
+// Students with no photo yet fall back to a generated avatar, so a roster can be built
+// names-first and photographed later. Before any students are added, the deck shows an
+// empty state. State is in-memory + localStorage (a prototype choice). WEB-ONLY; SwiftUI later.
 
 (function () {
   var ND = window.NameDeck;
-  var sampleRoster = ND.roster;
   var app = document.querySelector('#app');
 
   var delay = 2;        // seconds before the name appears
@@ -359,11 +323,9 @@ window.NameDeck = window.NameDeck || {};
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  // The roster the flashcard actually draws from: the teacher's if they have one, else the sample.
-  function activeRoster() { return myRoster.length ? myRoster : sampleRoster; }
-
+  // Pick a student to quiz (only called when the roster is non-empty).
   function pick() {
-    var list = activeRoster();
+    var list = myRoster;
     var p;
     do { p = list[Math.floor(Math.random() * list.length)]; }
     while (list.length > 1 && current && p.id === current.id);
@@ -456,7 +418,7 @@ window.NameDeck = window.NameDeck || {};
 
     document.querySelector('#card').addEventListener('click', onCardTap);
 
-    nextCard();
+    refreshDeck();
   }
 
   // ---- Settings panel ----
@@ -472,7 +434,7 @@ window.NameDeck = window.NameDeck || {};
   }
   function closeSettings() {
     document.querySelector('#settings').hidden = true;
-    nextCard();                                        // resume with the chosen timings
+    refreshDeck();                                     // resume with the chosen timings
   }
   function resetSettings() {
     delay = DEFAULT_DELAY;
@@ -497,7 +459,7 @@ window.NameDeck = window.NameDeck || {};
   }
   function closeRoster() {
     document.querySelector('#rosterSheet').hidden = true;
-    nextCard();                                       // rebuild the deck from the active roster
+    refreshDeck();                                    // rebuild the deck (card, or empty state)
   }
 
   function addNames() {
@@ -572,7 +534,7 @@ window.NameDeck = window.NameDeck || {};
   function renderList() {
     var el = document.querySelector('#rosterList');
     if (!myRoster.length) {
-      el.innerHTML = '<div class="empty">No students yet — the sample squad is shown until you add some.</div>';
+      el.innerHTML = '<div class="empty">No students yet — add names or import photos above.</div>';
       return;
     }
     el.innerHTML = myRoster.map(function (s) {
@@ -693,18 +655,27 @@ window.NameDeck = window.NameDeck || {};
   }
 
   // ---- Flashcard ----
-  function loadPhoto(p, imgEl, fallback) {
-    // Fetch the person's public-domain portrait from Wikipedia's REST API at runtime.
-    // Fall back to a generated avatar on any failure (no network, blocked, no image).
-    if (typeof fetch !== 'function' || !p.wiki) { fallback(); return; }
-    fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(p.wiki))
-      .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
-      .then(function (data) {
-        if (current !== p) return; // a newer card is showing; ignore stale result
-        var src = data && data.thumbnail && data.thumbnail.source;
-        if (src) { imgEl.src = src; } else { fallback(); }
-      })
-      .catch(function () { if (current === p) fallback(); });
+  // Rebuild the deck: a card if there are students, otherwise the empty state.
+  function refreshDeck() {
+    clearTimers();
+    if (myRoster.length) nextCard();
+    else showEmpty();
+  }
+
+  function showEmpty() {
+    current = null;
+    revealed = false;
+    document.querySelector('#avatar').innerHTML =
+      '<div class="empty-deck">' +
+        '<div class="empty-title">No students yet</div>' +
+        '<div class="empty-sub">Add your class to start studying their names.</div>' +
+        '<button class="btn primary" id="emptyAdd">Add roster</button>' +
+      '</div>';
+    document.querySelector('#nameSlot').innerHTML = '';
+    document.querySelector('#emptyAdd').addEventListener('click', function (ev) {
+      ev.stopPropagation(); // don't also trigger the card tap
+      openRoster();
+    });
   }
 
   function showCard(p) {
@@ -717,18 +688,11 @@ window.NameDeck = window.NameDeck || {};
       if (current === p) av.innerHTML = ND.avatar(p.avatarSeed || p.preferredName, 320);
     };
     if (p.photo) {
-      // Teacher-supplied photo (a data URL): use it directly.
-      var direct = document.createElement('img');
-      direct.className = 'photo'; direct.alt = 'portrait';
-      direct.onerror = fallback;
-      direct.src = p.photo;
-      av.appendChild(direct);
-    } else if (p.wiki) {
       var img = document.createElement('img');
       img.className = 'photo'; img.alt = 'portrait';
       img.onerror = fallback;
+      img.src = p.photo;
       av.appendChild(img);
-      loadPhoto(p, img, fallback);
     } else {
       fallback(); // named student, no photo yet
     }
@@ -769,6 +733,13 @@ window.NameDeck = window.NameDeck || {};
 
   render();
 })();
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function () {});
+      });
+    }
   </script>
 </body>
 </html>
