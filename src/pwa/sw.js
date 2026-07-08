@@ -1,9 +1,14 @@
-// sw.js — service worker: caches the app shell so NameDeck opens offline and loads fast.
-// Bump CACHE (e.g. v1 -> v2) when the shell changes to force clients to refresh.
+// sw.js — service worker.
+// Strategy:
+//   - App shell / navigations: NETWORK-FIRST, so a new deploy shows on the next online
+//     launch; falls back to the cached shell when offline.
+//   - Other GET assets (manifest, icons): cache-first for speed and offline use.
+// Bump CACHE when you want to force-clear old caches.
 
 var CACHE = 'namedeck-v1';
+var SHELL = './index.html';
 var ASSETS = [
-  './index.html',
+  SHELL,
   './manifest.webmanifest',
   './icon-192.png',
   './icon-512.png',
@@ -31,12 +36,23 @@ self.addEventListener('activate', function (e) {
 self.addEventListener('fetch', function (e) {
   var req = e.request;
   if (req.method !== 'GET') return; // only handle GETs
+
+  // App shell / navigations: network-first so new deploys appear; cache as offline backup.
+  if (req.mode === 'navigate') {
+    e.respondWith(
+      fetch(req)
+        .then(function (res) {
+          var copy = res.clone();
+          caches.open(CACHE).then(function (c) { c.put(SHELL, copy); });
+          return res;
+        })
+        .catch(function () { return caches.match(SHELL); })
+    );
+    return;
+  }
+
+  // Everything else: cache-first, falling back to the network.
   e.respondWith(
-    caches.match(req).then(function (hit) {
-      return hit || fetch(req).catch(function () {
-        // Offline and uncached: fall back to the app shell for navigations.
-        if (req.mode === 'navigate') return caches.match('./index.html');
-      });
-    })
+    caches.match(req).then(function (hit) { return hit || fetch(req); })
   );
 });
