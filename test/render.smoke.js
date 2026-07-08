@@ -52,8 +52,12 @@ function fireChange(input, files) {
   gapSlider.value = '1'; gapSlider.dispatchEvent(new dom.window.Event('input'));
   ok('changing gap slider updates label to 1s', doc.querySelector('#gapVal').textContent === '1s');
   doc.querySelector('#resetSettings').click();
-  ok('Reset All restores default reveal delay (2s)', doc.querySelector('#delayVal').textContent === '2s');
-  ok('Reset All restores default advance gap (1s)', doc.querySelector('#gapVal').textContent === '1s');
+  ok('Reset All opens a confirmation dialog', !doc.querySelector('#confirm').hidden);
+  ok('reset does not apply until confirmed', doc.querySelector('#delayVal').textContent === '1s');
+  doc.querySelector('#confirmOk').click();
+  ok('confirming Reset All restores default reveal delay (2s)', doc.querySelector('#delayVal').textContent === '2s');
+  ok('confirming Reset All restores default advance gap (1s)', doc.querySelector('#gapVal').textContent === '1s');
+  ok('dialog closes after confirming', doc.querySelector('#confirm').hidden);
   delaySlider.value = '1'; delaySlider.dispatchEvent(new dom.window.Event('input')); // 1s for timing below
   gapSlider.value = '1'; gapSlider.dispatchEvent(new dom.window.Event('input'));
   doc.querySelector('#closeSettings').click();
@@ -117,7 +121,15 @@ function fireChange(input, files) {
 
   // --- E. Clearing the roster returns to the empty state ---
   doc.querySelector('#rosterBtn').click();
+  const countBeforeCancel = rowCount();
   doc.querySelector('#clearRoster').click();
+  ok('Clear All opens a confirmation dialog', !doc.querySelector('#confirm').hidden);
+  doc.querySelector('#confirmCancel').click();
+  ok('cancelling keeps the roster intact', rowCount() === countBeforeCancel && countBeforeCancel > 0);
+  ok('dialog closes after cancelling', doc.querySelector('#confirm').hidden);
+  doc.querySelector('#clearRoster').click();
+  doc.querySelector('#confirmOk').click();
+  ok('confirming Clear All empties the roster list', rowCount() === 0);
   doc.querySelector('#useRoster').click();
   ok('clearing the roster returns to the empty state', !!doc.querySelector('.empty-deck'));
 

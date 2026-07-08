@@ -104,6 +104,17 @@ body {
 .btn.primary { background: var(--ink); color: #fff; }
 .btn.ghost { background: transparent; box-shadow: none; color: var(--muted); }
 .btn.tiny { padding: 6px 10px; font-size: 13px; font-weight: 500; }
+.btn.danger { background: #d1453b; color: #fff; }
+
+/* In-app confirmation dialog (for Clear All / Reset All). */
+.modal { position: absolute; inset: 0; z-index: 10; display: flex; align-items: center;
+  justify-content: center; padding: 24px; background: rgba(15,20,32,.45); }
+.modal[hidden] { display: none; }
+.modal-card { width: 100%; max-width: 300px; background: var(--card); border-radius: 18px;
+  padding: 20px; box-shadow: 0 16px 40px rgba(20,30,60,.30); }
+.modal-msg { margin: 0 0 16px; font-size: 15px; line-height: 1.5; color: var(--ink); text-align: center; }
+.modal-actions { display: flex; gap: 10px; }
+.modal-actions .btn { flex: 1; text-align: center; }
 
 .roster-list { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
 .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 18px 8px; }

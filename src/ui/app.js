@@ -108,6 +108,15 @@
           '<div class="avatar" id="avatar"></div>' +
           '<div class="name-slot" id="nameSlot"></div>' +
         '</div>' +
+        '<div class="modal" id="confirm" hidden>' +
+          '<div class="modal-card">' +
+            '<p class="modal-msg" id="confirmMsg"></p>' +
+            '<div class="modal-actions">' +
+              '<button class="btn ghost" id="confirmCancel">Cancel</button>' +
+              '<button class="btn danger" id="confirmOk">OK</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
       '</div>';
 
     // The deck is paused while the settings sheet is open, so new values apply on close.
@@ -142,7 +151,30 @@
 
     document.querySelector('#card').addEventListener('click', onCardTap);
 
+    document.querySelector('#confirmCancel').addEventListener('click', closeConfirm);
+    document.querySelector('#confirmOk').addEventListener('click', function () {
+      var fn = pendingConfirm;
+      closeConfirm();
+      if (fn) fn();
+    });
+    document.querySelector('#confirm').addEventListener('click', function (e) {
+      if (e.target.id === 'confirm') closeConfirm(); // clicking the backdrop cancels
+    });
+
     refreshDeck();
+  }
+
+  // ---- Confirmation dialog (in-app, styled) ----
+  var pendingConfirm = null;
+  function askConfirm(message, okLabel, onConfirm) {
+    document.querySelector('#confirmMsg').textContent = message;
+    document.querySelector('#confirmOk').textContent = okLabel;
+    pendingConfirm = onConfirm;
+    document.querySelector('#confirm').hidden = false;
+  }
+  function closeConfirm() {
+    document.querySelector('#confirm').hidden = true;
+    pendingConfirm = null;
   }
 
   // ---- Settings panel ----
@@ -161,12 +193,14 @@
     refreshDeck();                                     // resume with the chosen timings
   }
   function resetSettings() {
-    delay = DEFAULT_DELAY;
-    gap = DEFAULT_GAP;
-    var d = document.querySelector('#delay');
-    d.value = delay; document.querySelector('#delayVal').textContent = delay + 's';
-    var g = document.querySelector('#gap');
-    g.value = gap; document.querySelector('#gapVal').textContent = gap + 's';
+    askConfirm('Reset the timing settings to their defaults?', 'Reset All', function () {
+      delay = DEFAULT_DELAY;
+      gap = DEFAULT_GAP;
+      var d = document.querySelector('#delay');
+      d.value = delay; document.querySelector('#delayVal').textContent = delay + 's';
+      var g = document.querySelector('#gap');
+      g.value = gap; document.querySelector('#gapVal').textContent = gap + 's';
+    });
   }
 
   // ---- Roster panel ----
@@ -250,9 +284,11 @@
   }
 
   function clearRoster() {
-    myRoster = [];
-    ND.rosterStore.clear();
-    renderList();
+    askConfirm("Remove all students from your roster? This can't be undone.", 'Clear All', function () {
+      myRoster = [];
+      ND.rosterStore.clear();
+      renderList();
+    });
   }
 
   function renderList() {
