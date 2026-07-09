@@ -30,6 +30,9 @@ function fireChange(input, files) {
   ok('empty state shown when no students', !!doc.querySelector('.empty-deck'));
   ok('empty state has an "Add roster" button', !!doc.querySelector('#emptyAdd'));
   ok('no card avatar while empty', !doc.querySelector('.avatar img, .avatar svg'));
+  ok('transport controls hidden while empty', doc.querySelector('#transport').hidden);
+  ok('roster/settings buttons present in the bottom bar',
+     !!doc.querySelector('#controls #rosterBtn') && !!doc.querySelector('#controls #gear'));
   ok('name hidden initially', !nameShown());
   ok('PWA manifest is linked', !!doc.querySelector('link[rel="manifest"]'));
   ok('apple-touch-icon is linked', !!doc.querySelector('link[rel="apple-touch-icon"]'));
@@ -118,6 +121,55 @@ function fireChange(input, files) {
   ok('name auto-reveals after the delay', nameShown());
   await new Promise(function (r) { setTimeout(r, 1200); });
   ok('auto-advances to the next student after the gap', !nameShown());
+
+  // --- D2. Playback controls: pause + prev/next navigation ---
+  ok('transport controls visible with a roster', !doc.querySelector('#transport').hidden);
+  ok('prev/next disabled while playing',
+     doc.querySelector('#prevCard').disabled && doc.querySelector('#nextCard').disabled);
+  ok('frequency selector hidden while playing', doc.querySelector('#freq').hidden);
+
+  doc.querySelector('#playPause').click(); // pause
+  ok('pause switches the button to Continue', doc.querySelector('#playPause').getAttribute('aria-label') === 'Continue');
+  ok('pause enables the Next control', !doc.querySelector('#nextCard').disabled);
+
+  // Frequency selector: visible only when paused, five levels, defaults to Normal (1).
+  ok('frequency selector visible when paused', !doc.querySelector('#freq').hidden);
+  ok('frequency selector has five levels', doc.querySelectorAll('#freqSeg .freq-opt').length === 5);
+  ok('frequency scale shows Rarely/Normal/A lot anchors', /Rarely.*Normal.*A lot/s.test(doc.querySelector('.freq-scale').textContent));
+  ok('current card defaults to Normal (1)',
+     doc.querySelector('#freqSeg .freq-opt.active').getAttribute('data-w') === '1');
+  doc.querySelector('#freqSeg .freq-opt[data-w="5"]').click();
+  ok('choosing a level highlights it',
+     doc.querySelector('#freqSeg .freq-opt.active').getAttribute('data-w') === '5');
+
+  // A paused deck must not auto-advance: reveal, wait, and the name stays put.
+  doc.querySelector('#card').click(); // reveal while paused
+  ok('tapping reveals the name while paused', nameShown());
+  const pausedName = doc.querySelector('.name').textContent;
+  await new Promise(function (r) { setTimeout(r, 1200); });
+  ok('paused deck does not auto-advance',
+     nameShown() && doc.querySelector('.name').textContent === pausedName);
+
+  // Next steps to a new (hidden) card; Back returns to the one we just saw.
+  doc.querySelector('#nextCard').click();
+  ok('Next shows a new card (name hidden)', !nameShown());
+  ok('Back is enabled after moving forward', !doc.querySelector('#prevCard').disabled);
+  doc.querySelector('#prevCard').click();
+  doc.querySelector('#card').click(); // reveal it again
+  ok('Back returns to the same student', doc.querySelector('.name') &&
+     doc.querySelector('.name').textContent === pausedName);
+
+  doc.querySelector('#playPause').click(); // continue
+  ok('Continue resumes playing (Next disabled again)', doc.querySelector('#nextCard').disabled);
+
+  // Opening and closing the roster preserves the paused state (like settings does).
+  doc.querySelector('#playPause').click(); // pause again
+  doc.querySelector('#rosterBtn').click(); // open roster
+  doc.querySelector('#useRoster').click(); // close (Done)
+  ok('closing the roster keeps the deck paused',
+     doc.querySelector('#playPause').getAttribute('aria-label') === 'Continue' &&
+     !doc.querySelector('#nextCard').disabled);
+  doc.querySelector('#playPause').click(); // back to playing for the section below
 
   // --- E. Clearing the roster returns to the empty state ---
   doc.querySelector('#rosterBtn').click();

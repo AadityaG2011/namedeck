@@ -18,6 +18,9 @@
   var revealTimer = null;
   var advanceTimer = null;
   var revealed = false;
+  var paused = false;   // when paused, the deck stops auto-cycling and prev/next are usable
+  var history = [];     // the students shown, in order (for prev/next navigation)
+  var pos = -1;         // index of the current card within history
 
   var myRoster = ND.rosterStore.load(); // the teacher's own students (may be empty)
   var seq = 0;                          // helps make unique ids within a session
@@ -41,26 +44,37 @@
     '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>' +
     '<path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
 
+  // Playback control icons.
+  var PLAY_SVG = '<svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+  var PAUSE_SVG = '<svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
+  var PREV_SVG = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>';
+  var NEXT_SVG = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>';
+
   function escapeHtml(s) {
     return String(s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  // Pick a student to quiz (only called when the roster is non-empty).
+  // Pick a student to quiz — weighted by each student's "appears" frequency (default 1),
+  // and never the same one twice in a row. Only called when the roster is non-empty.
   function pick() {
     var list = myRoster;
-    var p;
-    do { p = list[Math.floor(Math.random() * list.length)]; }
-    while (list.length > 1 && current && p.id === current.id);
-    return p;
+    if (list.length === 1) return list[0];
+    var pool = list.filter(function (s) { return !current || s.id !== current.id; });
+    var total = 0;
+    pool.forEach(function (s) { total += (s.weight || 1); });
+    var r = Math.random() * total;
+    for (var i = 0; i < pool.length; i++) {
+      r -= (pool[i].weight || 1);
+      if (r < 0) return pool[i];
+    }
+    return pool[pool.length - 1];
   }
 
   function render() {
     app.innerHTML =
       '<div class="screen">' +
-        '<button class="iconbtn roster-btn" id="rosterBtn" aria-label="My Roster" title="My Roster">' + ROSTER_SVG + '</button>' +
-        '<button class="iconbtn gear" id="gear" aria-label="Settings" title="Settings">' + GEAR_SVG + '</button>' +
         '<div class="sheet" id="settings" hidden>' +
           '<div class="sheet-head">' +
             '<span>Settings</span>' +
@@ -108,6 +122,28 @@
           '<div class="avatar" id="avatar"></div>' +
           '<div class="name-slot" id="nameSlot"></div>' +
         '</div>' +
+        '<div class="freq" id="freq" hidden>' +
+          '<span class="freq-label">Appears</span>' +
+          '<div class="freq-picker">' +
+            '<div class="freq-seg" id="freqSeg">' +
+              '<button class="freq-opt" data-w="0.2" aria-label="one fifth as often">1/5</button>' +
+              '<button class="freq-opt" data-w="0.5" aria-label="half as often">1/2</button>' +
+              '<button class="freq-opt" data-w="1" aria-label="normal">1</button>' +
+              '<button class="freq-opt" data-w="2" aria-label="twice as often">2</button>' +
+              '<button class="freq-opt" data-w="5" aria-label="five times as often">5</button>' +
+            '</div>' +
+            '<div class="freq-scale"><span>Rarely</span><span>Normal</span><span>A lot</span></div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="controls" id="controls">' +
+          '<button class="iconbtn roster-btn" id="rosterBtn" aria-label="My Roster" title="My Roster">' + ROSTER_SVG + '</button>' +
+          '<div class="transport" id="transport">' +
+            '<button class="ctrl" id="prevCard" aria-label="Previous card">' + PREV_SVG + '</button>' +
+            '<button class="ctrl play" id="playPause" aria-label="Pause">' + PAUSE_SVG + '</button>' +
+            '<button class="ctrl" id="nextCard" aria-label="Next card">' + NEXT_SVG + '</button>' +
+          '</div>' +
+          '<button class="iconbtn gear" id="gear" aria-label="Settings" title="Settings">' + GEAR_SVG + '</button>' +
+        '</div>' +
         '<div class="modal" id="confirm" hidden>' +
           '<div class="modal-card">' +
             '<p class="modal-msg" id="confirmMsg"></p>' +
@@ -151,6 +187,11 @@
 
     document.querySelector('#card').addEventListener('click', onCardTap);
 
+    document.querySelector('#playPause').addEventListener('click', togglePause);
+    document.querySelector('#prevCard').addEventListener('click', function () { if (paused) prevCard(); });
+    document.querySelector('#nextCard').addEventListener('click', function () { if (paused) nextCard(); });
+    document.querySelector('#freqSeg').addEventListener('click', onFreqClick);
+
     document.querySelector('#confirmCancel').addEventListener('click', closeConfirm);
     document.querySelector('#confirmOk').addEventListener('click', function () {
       var fn = pendingConfirm;
@@ -187,10 +228,12 @@
     clearTimers();                                     // pause the deck while it's open
     document.querySelector('#rosterSheet').hidden = true; // switch away from the roster
     document.querySelector('#settings').hidden = false;
+    showTransport(false);
   }
   function closeSettings() {
     document.querySelector('#settings').hidden = true;
-    refreshDeck();                                     // resume with the chosen timings
+    if (current) resumeDeck();  // keep the same card; new timings apply from here
+    else refreshDeck();
   }
   function resetSettings() {
     askConfirm('Reset the timing settings to their defaults?', 'Reset All', function () {
@@ -214,6 +257,7 @@
     showStorageNotice(false);
     renderList();
     document.querySelector('#rosterSheet').hidden = false;
+    showTransport(false);
   }
   function closeRoster() {
     document.querySelector('#rosterSheet').hidden = true;
@@ -415,16 +459,30 @@
   }
 
   // ---- Flashcard ----
-  // Rebuild the deck: a card if there are students, otherwise the empty state.
+  // Rebuild the deck from scratch (used when the roster changes): fresh history, but keep
+  // the current play/pause state (so closing the roster doesn't force it back to playing).
   function refreshDeck() {
     clearTimers();
-    if (myRoster.length) nextCard();
+    history = [];
+    pos = -1;
+    if (myRoster.length) { updateControls(); nextCard(); }
     else showEmpty();
+  }
+
+  // Resume the current card in place (after the settings sheet closes) without resetting.
+  function resumeDeck() {
+    clearTimers();
+    showTransport(true);
+    updateControls();
+    renderNameSlot();
+    if (!paused) armForState();
   }
 
   function showEmpty() {
     current = null;
     revealed = false;
+    showTransport(false);
+    document.querySelector('#freq').hidden = true;
     document.querySelector('#avatar').innerHTML =
       '<div class="empty-deck">' +
         '<div class="empty-title">No students yet</div>' +
@@ -442,6 +500,7 @@
     current = p;
     revealed = false;
     if (advanceTimer) { clearTimeout(advanceTimer); advanceTimer = null; }
+    showTransport(true);
     var av = document.querySelector('#avatar');
     av.innerHTML = '';
     var fallback = function () {
@@ -456,8 +515,21 @@
     } else {
       fallback(); // named student, no photo yet
     }
-    document.querySelector('#nameSlot').innerHTML = '<div class="waiting">tap or wait…</div>';
-    armReveal();
+    renderNameSlot();
+    updateControls();
+    if (!paused) armReveal();
+  }
+
+  // Render the name slot for the current state (hidden vs revealed, playing vs paused).
+  function renderNameSlot() {
+    var slot = document.querySelector('#nameSlot');
+    if (!current) { slot.innerHTML = ''; return; }
+    if (revealed) {
+      slot.innerHTML = '<div class="name">' + escapeHtml(current.preferredName) + '</div>' +
+        (paused ? '' : '<div class="waiting">tap or wait…</div>');
+    } else {
+      slot.innerHTML = '<div class="waiting">' + (paused ? 'tap to reveal' : 'tap or wait…') + '</div>';
+    }
   }
 
   function armReveal() {
@@ -470,6 +542,11 @@
     advanceTimer = setTimeout(nextCard, gap * 1000);
   }
 
+  function armForState() {   // resume the cycle from wherever the current card is
+    if (paused || !current) return;
+    if (revealed) armAdvance(); else armReveal();
+  }
+
   function clearTimers() {
     if (revealTimer) { clearTimeout(revealTimer); revealTimer = null; }
     if (advanceTimer) { clearTimeout(advanceTimer); advanceTimer = null; }
@@ -479,17 +556,69 @@
     if (!current || revealed) return;
     revealed = true;
     if (revealTimer) { clearTimeout(revealTimer); revealTimer = null; }
-    var p = current;
-    // Keep the "tap or wait…" hint below the name: the user can now tap or wait to advance.
-    document.querySelector('#nameSlot').innerHTML =
-      '<div class="name">' + escapeHtml(p.preferredName) + '</div>' +
-      '<div class="waiting">tap or wait…</div>';
-    armAdvance();
+    renderNameSlot();
+    if (!paused) armAdvance();
   }
 
-  // Tap the card: first tap reveals the name, a second tap skips to the next student.
-  function onCardTap() { if (revealed) nextCard(); else reveal(); }
-  function nextCard() { showCard(pick()); }
+  // ---- Playback controls ----
+  function togglePause() { setPaused(!paused); }
+  function setPaused(p) {
+    paused = p;
+    if (paused) clearTimers();
+    updateControls();
+    renderNameSlot();
+    if (!paused) armForState();
+  }
+  function showTransport(show) { document.querySelector('#transport').hidden = !show; }
+  function updateControls() {
+    var pp = document.querySelector('#playPause');
+    pp.innerHTML = paused ? PLAY_SVG : PAUSE_SVG;
+    pp.setAttribute('aria-label', paused ? 'Continue' : 'Pause');
+    // Prev/Next step through cards, and are only usable while paused.
+    document.querySelector('#prevCard').disabled = !paused || pos <= 0;
+    document.querySelector('#nextCard').disabled = !paused;
+    // The frequency selector is only shown while paused (there's no time to use it mid-cycle).
+    document.querySelector('#freq').hidden = !(paused && current);
+    renderFreq();
+  }
+
+  // Highlight the current student's "appears" level in the frequency selector.
+  function renderFreq() {
+    var seg = document.querySelector('#freqSeg');
+    var w = current ? (current.weight || 1) : 1;
+    var opts = seg.querySelectorAll('.freq-opt');
+    for (var i = 0; i < opts.length; i++) {
+      var active = parseFloat(opts[i].getAttribute('data-w')) === w;
+      opts[i].classList.toggle('active', active);
+      opts[i].setAttribute('aria-pressed', active ? 'true' : 'false');
+    }
+  }
+
+  // Set how often the current student appears (a weight for the weighted pick).
+  function onFreqClick(e) {
+    var btn = e.target.closest && e.target.closest('.freq-opt');
+    if (!btn || !current) return;
+    current.weight = parseFloat(btn.getAttribute('data-w'));
+    save();
+    renderFreq();
+  }
+
+  // Tap the card: reveal the name; when playing, a second tap skips ahead.
+  function onCardTap() {
+    if (paused) { if (!revealed) reveal(); return; }
+    if (revealed) nextCard(); else reveal();
+  }
+
+  // Advance: step forward through history, or draw a new student at the end.
+  function nextCard() {
+    if (pos < history.length - 1) { pos++; }
+    else { history.push(pick()); pos = history.length - 1; }
+    showCard(history[pos]);
+  }
+  // Step back to a previously-shown card (only meaningful while paused).
+  function prevCard() {
+    if (pos > 0) { pos--; showCard(history[pos]); }
+  }
 
   render();
 })();

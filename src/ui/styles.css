@@ -13,8 +13,7 @@ body {
   background: #f4f6fb; overflow: hidden;
 }
 #app { flex: 1; display: flex; flex-direction: column; padding: 12px; }
-.screen { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column;
-  padding-top: 56px; } /* room for the gear/roster buttons above the card */
+.screen { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 /* Wider screens: show it inside a centered phone mockup for a desktop preview. */
 @media (min-width: 480px) {
@@ -28,16 +27,12 @@ body {
   }
 }
 
-/* Icon buttons — float in the strip above the card (gear right, roster left). */
+/* Icon buttons — roster (left) and settings (right) live in the bottom bar. */
 .iconbtn {
-  position: absolute; top: 8px; z-index: 3;
-  width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
-  border: none; border-radius: 12px; background: rgba(255,255,255,.78); color: var(--ink);
-  cursor: pointer; box-shadow: 0 2px 8px rgba(20,30,60,.14);
+  width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%; background: none; color: var(--ink); cursor: pointer;
 }
 .iconbtn:active { transform: scale(.94); }
-.gear { right: 8px; }
-.roster-btn { left: 8px; }
 
 .close { border: none; background: none; font-size: 22px; line-height: 1; color: var(--muted);
   cursor: pointer; padding: 0 6px; }
@@ -56,15 +51,17 @@ body {
   background: var(--card); border-radius: 22px; padding: 10px; text-align: center;
   box-shadow: 0 8px 26px rgba(20,30,60,.10); cursor: pointer;
 }
-.avatar { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.avatar { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; }
 /* Empty state — shown in the card when no students have been added yet. */
 .empty-deck { display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 10px; padding: 24px; text-align: center; }
 .empty-title { font-size: 20px; font-weight: 800; color: var(--ink); }
 .empty-sub { font-size: 14px; color: var(--muted); line-height: 1.5; max-width: 240px; }
 .empty-deck .btn { margin-top: 6px; }
+/* Absolutely fill the avatar so no image (whatever its aspect ratio) can grow the layout. */
 .avatar .photo, .avatar svg {
-  width: 100%; height: 100%; border-radius: 16px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  border-radius: 16px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
 }
 .avatar .photo { object-fit: cover; background: #e7ebf2; }
 /* Fixed height so the image above doesn't shift when the name replaces the hint. */
@@ -74,10 +71,38 @@ body {
 .name { font-size: 30px; font-weight: 800; animation: pop .22s ease; }
 @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-/* Roster panel — a full-screen sheet over the card for building the teacher's roster. */
-/* Starts below the top strip so the roster button stays visible while it's open. */
+/* Frequency selector (how often the current student appears) — shown while paused. */
+.freq { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 6px 0 0; }
+.freq[hidden] { display: none; }
+.freq-label { font-size: 12px; color: var(--muted); }
+.freq-picker { display: inline-flex; flex-direction: column; gap: 2px; }
+.freq-seg { display: flex; background: #e7ebf2; border-radius: 10px; padding: 2px; gap: 2px; }
+.freq-opt { flex: 1; border: none; background: none; color: var(--muted); cursor: pointer; font: inherit;
+  min-width: 34px; padding: 5px 8px; border-radius: 8px; font-size: 13px; font-weight: 600; }
+.freq-opt.active { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(20,30,60,.15); }
+.freq-scale { display: flex; justify-content: space-between; padding: 0 5px; }
+.freq-scale span { font-size: 10.5px; color: var(--muted); }
+
+/* Playback controls (pause/continue + prev/next) below the card. */
+/* Bottom bar: roster (left) | transport (center) | settings (right). */
+.controls { flex: 0 0 auto; position: relative; z-index: 7; height: 68px;
+  display: flex; align-items: center; justify-content: space-between; padding: 0 6px; }
+.controls[hidden] { display: none; }
+.transport { display: flex; align-items: center; gap: 22px; }
+.transport[hidden] { display: none; }
+.ctrl { border: none; background: none; color: var(--ink); cursor: pointer; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  width: 48px; height: 48px; border-radius: 50%; }
+.ctrl:disabled { opacity: .28; cursor: default; }
+.ctrl:not(:disabled):active { transform: scale(.94); }
+.ctrl.play { width: 58px; height: 58px; background: var(--ink); color: #fff;
+  box-shadow: 0 4px 14px rgba(20,30,60,.25); }
+
+/* Roster/settings panels — fill from the top down to just above the bottom bar, so the
+   roster/settings buttons in that bar stay visible (to switch panels or close). */
 .sheet {
-  position: absolute; top: 56px; right: 0; bottom: 0; left: 0; z-index: 6;
+  position: absolute; top: 0; right: 0; bottom: 68px; left: 0; z-index: 6;
   display: flex; flex-direction: column;
   background: #f4f6fb; border-radius: 22px; overflow: hidden;
   box-shadow: 0 6px 18px rgba(20,30,60,.12);
