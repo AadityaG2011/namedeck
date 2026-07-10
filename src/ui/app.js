@@ -537,17 +537,16 @@
     if (advanceTimer) { clearTimeout(advanceTimer); advanceTimer = null; }
     showTransport(true);
     var av = document.querySelector('#avatar');
-    av.innerHTML = '<div class="frame"></div>';
-    var frame = av.firstChild;
+    av.innerHTML = '';
     var fallback = function () {
-      if (current === p) frame.innerHTML = ND.avatar(p.avatarSeed || p.preferredName, 320);
+      if (current === p) av.innerHTML = ND.avatar(p.avatarSeed || p.preferredName, 320);
     };
     if (p.photo) {
       var img = document.createElement('img');
       img.className = 'photo'; img.alt = 'portrait';
       img.onerror = fallback;
       img.src = p.photo;
-      frame.appendChild(img);
+      av.appendChild(img);
     } else {
       fallback(); // named student, no photo yet
     }
