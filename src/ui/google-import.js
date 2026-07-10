@@ -76,6 +76,7 @@ window.NameDeck = window.NameDeck || {};
       var picker = new google.picker.PickerBuilder()
         .setOAuthToken(token)
         .setDeveloperKey(API_KEY)
+        .setAppId(CLIENT_ID.split('-')[0]) // project number: grants drive.file access to picked files
         .setTitle('Select your responses spreadsheet and the photos')
         .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
         .addView(view)
@@ -92,13 +93,18 @@ window.NameDeck = window.NameDeck || {};
   function authFetch(url, token) {
     return fetch(url, { headers: { Authorization: 'Bearer ' + token } });
   }
+  function httpError(label, r) {
+    return r.text().then(function (t) {
+      throw new Error(label + ' (HTTP ' + r.status + '): ' + String(t).slice(0, 300));
+    });
+  }
   function downloadFile(id, token) {
     return authFetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media', token)
-      .then(function (r) { if (!r.ok) return Promise.reject(new Error('Photo download failed')); return r.blob(); });
+      .then(function (r) { return r.ok ? r.blob() : httpError('Photo download failed', r); });
   }
   function exportSheetCsv(id, token) {
     return authFetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '/export?mimeType=text%2Fcsv', token)
-      .then(function (r) { if (!r.ok) return Promise.reject(new Error('Could not read the spreadsheet')); return r.text(); });
+      .then(function (r) { return r.ok ? r.text() : httpError('Could not read the spreadsheet', r); });
   }
 
   // Minimal RFC-4180-ish CSV parser (handles quoted fields, embedded commas/newlines).
