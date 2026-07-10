@@ -76,12 +76,14 @@ body {
 .empty-title { font-size: 20px; font-weight: 800; color: var(--ink); }
 .empty-sub { font-size: 14px; color: var(--muted); line-height: 1.5; max-width: 240px; }
 .empty-deck .btn { margin-top: 6px; }
-/* Absolutely fill the avatar so no image (whatever its aspect ratio) can grow the layout. */
-.avatar .photo, .avatar svg {
+/* Photo frame: a 3:4 (selfie-shaped) box that fits within the avatar area, centered.
+   min-height:0 + max-height keep it from ever growing the layout. */
+.frame { position: relative; width: 100%; aspect-ratio: 3 / 4; max-height: 100%; min-height: 0; }
+.frame .photo, .frame svg {
   position: absolute; inset: 0; width: 100%; height: 100%;
   border-radius: 16px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
 }
-.avatar .photo { object-fit: cover; background: #e7ebf2; }
+.frame .photo { object-fit: contain; background: #e7ebf2; }
 /* Fixed height so the image above doesn't shift when the name replaces the hint. */
 .name-slot { flex: 0 0 auto; height: 80px; display: flex; flex-direction: column;
   justify-content: center; padding: 8px 0 4px; }
@@ -385,18 +387,20 @@ window.NameDeck = window.NameDeck || {};
     });
   }
 
+  function ensureTokenClient() {
+    if (!tokenClient) {
+      tokenClient = google.accounts.oauth2.initTokenClient({ client_id: CLIENT_ID, scope: SCOPE, callback: function () {} });
+    }
+  }
+
   // Get an OAuth access token for the drive.file scope (prompts the teacher to sign in/consent).
   function getToken() {
     return new Promise(function (resolve, reject) {
-      var cb = function (resp) {
+      ensureTokenClient();
+      tokenClient.callback = function (resp) {
         if (resp && resp.access_token) { accessToken = resp.access_token; resolve(accessToken); }
         else reject(new Error('Sign-in was cancelled'));
       };
-      if (!tokenClient) {
-        tokenClient = google.accounts.oauth2.initTokenClient({ client_id: CLIENT_ID, scope: SCOPE, callback: cb });
-      } else {
-        tokenClient.callback = cb;
-      }
       tokenClient.requestAccessToken({ prompt: accessToken ? '' : 'consent' });
     });
   }
@@ -488,6 +492,12 @@ window.NameDeck = window.NameDeck || {};
 
   NameDeck.googleImport = {
     configured: configured,
+    // Warm up the Google libraries ahead of time (e.g. when the roster opens), so the first
+    // click can open the sign-in popup within the user's tap — otherwise the async load loses
+    // the tap gesture and the browser blocks the popup (you'd have to click twice).
+    preload: function () {
+      if (configured()) ensureLibs().then(ensureTokenClient).catch(function () {});
+    },
     // Runs the whole flow; resolves with [{ preferredName, blob }] (blobs are the photo bytes).
     // onStatus(message) is called at each phase (for the in-app progress line).
     run: function (onStatus) {
@@ -804,6 +814,7 @@ window.NameDeck = window.NameDeck || {};
     renderList();
     document.querySelector('#rosterSheet').hidden = false;
     showTransport(false);
+    if (ND.googleImport && ND.googleImport.preload) ND.googleImport.preload(); // warm up Google
   }
   function closeRoster() {
     document.querySelector('#rosterSheet').hidden = true;
@@ -1077,16 +1088,17 @@ window.NameDeck = window.NameDeck || {};
     if (advanceTimer) { clearTimeout(advanceTimer); advanceTimer = null; }
     showTransport(true);
     var av = document.querySelector('#avatar');
-    av.innerHTML = '';
+    av.innerHTML = '<div class="frame"></div>';
+    var frame = av.firstChild;
     var fallback = function () {
-      if (current === p) av.innerHTML = ND.avatar(p.avatarSeed || p.preferredName, 320);
+      if (current === p) frame.innerHTML = ND.avatar(p.avatarSeed || p.preferredName, 320);
     };
     if (p.photo) {
       var img = document.createElement('img');
       img.className = 'photo'; img.alt = 'portrait';
       img.onerror = fallback;
       img.src = p.photo;
-      av.appendChild(img);
+      frame.appendChild(img);
     } else {
       fallback(); // named student, no photo yet
     }

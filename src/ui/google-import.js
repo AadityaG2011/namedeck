@@ -51,18 +51,20 @@ window.NameDeck = window.NameDeck || {};
     });
   }
 
+  function ensureTokenClient() {
+    if (!tokenClient) {
+      tokenClient = google.accounts.oauth2.initTokenClient({ client_id: CLIENT_ID, scope: SCOPE, callback: function () {} });
+    }
+  }
+
   // Get an OAuth access token for the drive.file scope (prompts the teacher to sign in/consent).
   function getToken() {
     return new Promise(function (resolve, reject) {
-      var cb = function (resp) {
+      ensureTokenClient();
+      tokenClient.callback = function (resp) {
         if (resp && resp.access_token) { accessToken = resp.access_token; resolve(accessToken); }
         else reject(new Error('Sign-in was cancelled'));
       };
-      if (!tokenClient) {
-        tokenClient = google.accounts.oauth2.initTokenClient({ client_id: CLIENT_ID, scope: SCOPE, callback: cb });
-      } else {
-        tokenClient.callback = cb;
-      }
       tokenClient.requestAccessToken({ prompt: accessToken ? '' : 'consent' });
     });
   }
@@ -154,6 +156,12 @@ window.NameDeck = window.NameDeck || {};
 
   NameDeck.googleImport = {
     configured: configured,
+    // Warm up the Google libraries ahead of time (e.g. when the roster opens), so the first
+    // click can open the sign-in popup within the user's tap — otherwise the async load loses
+    // the tap gesture and the browser blocks the popup (you'd have to click twice).
+    preload: function () {
+      if (configured()) ensureLibs().then(ensureTokenClient).catch(function () {});
+    },
     // Runs the whole flow; resolves with [{ preferredName, blob }] (blobs are the photo bytes).
     // onStatus(message) is called at each phase (for the in-app progress line).
     run: function (onStatus) {
