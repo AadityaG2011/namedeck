@@ -105,6 +105,11 @@ function fireChange(input, files) {
   ]);
   ok('import folder adds only the image file (skips notes.txt)', rowCount() === beforeFolder + 1);
 
+  // Google import: button present and the module loaded (unconfigured until credentials added).
+  ok('Import from Google button present', !!doc.querySelector('#importGoogle'));
+  ok('Google import module loaded',
+     !!dom.window.NameDeck.googleImport && typeof dom.window.NameDeck.googleImport.configured === 'function');
+
   const expected = rowNames();
   doc.querySelector('#useRoster').click();
   ok('Done closes the roster panel', doc.querySelector('#rosterSheet').hidden);

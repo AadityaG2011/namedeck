@@ -110,6 +110,7 @@
               '<label class="btn" id="importFolder">Import Folder' +
                 '<input type="file" id="folderImport" accept="image/*" webkitdirectory multiple hidden /></label>' +
             '</div>' +
+            '<button class="btn" id="importGoogle">Import from Google</button>' +
             '<p class="notice" id="storageNotice" hidden>Storage is full — new photos show now but may not be saved. Remove some students or use fewer/smaller photos.</p>' +
             '<div class="roster-list" id="rosterList"></div>' +
           '</div>' +
@@ -175,6 +176,7 @@
     document.querySelector('#addNames').addEventListener('click', addNames);
     document.querySelector('#photoImport').addEventListener('change', onImportPhotos);
     document.querySelector('#folderImport').addEventListener('change', onImportFolder);
+    document.querySelector('#importGoogle').addEventListener('click', onImportGoogle);
     document.querySelector('#clearRoster').addEventListener('click', clearRoster);
 
     // The roster list is re-rendered often, so listen once on the container (delegation).
@@ -325,6 +327,29 @@
       });
     });
     renderList(); // show the new students right away (names + placeholder) while photos decode
+  }
+
+  // Import from Google (Forms responses) via the Picker — names matched to photos by file ID.
+  function onImportGoogle() {
+    if (!ND.googleImport || !ND.googleImport.configured()) {
+      window.alert("Google import isn't set up yet — add your Google Cloud credentials in src/ui/google-import.js.");
+      return;
+    }
+    ND.googleImport.run().then(function (students) {
+      if (!students || !students.length) return;
+      var pending = students.length;
+      students.forEach(function (s) {
+        var stud = { id: 'r' + (++seq), preferredName: s.preferredName, photo: null, avatarSeed: s.preferredName };
+        myRoster.push(stud);
+        fileToPhoto(s.blob, function (dataUrl) {
+          stud.photo = dataUrl;
+          if (--pending === 0) { var ok = save(); renderList(); showStorageNotice(!ok); }
+        });
+      });
+      renderList();
+    }).catch(function (err) {
+      window.alert('Google import failed: ' + (err && err.message ? err.message : err));
+    });
   }
 
   function clearRoster() {
