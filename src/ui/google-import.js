@@ -20,7 +20,7 @@ window.NameDeck = window.NameDeck || {};
   // --------------------------------------------------
 
   var SCOPE = 'https://www.googleapis.com/auth/drive.file';
-  var SHEET_MIME = 'application/vnd.google-apps.spreadsheet';
+  var FOLDER_MIME = 'application/vnd.google-apps.folder';
   var NAME_HEADER = 'Preferred Full Name';   // must match your form's name question title
   var PHOTO_HEADER = 'Your Photo';           // must match your form's photo question title
 
@@ -67,26 +67,37 @@ window.NameDeck = window.NameDeck || {};
     });
   }
 
-  // Show the Picker; resolves with the selected docs (or null if cancelled).
-  function showPicker(token) {
+  // Build + show a Picker; resolves with the selected docs (or null if cancelled).
+  function buildPicker(token, opts) {
     return new Promise(function (resolve) {
-      var view = new google.picker.DocsView(google.picker.ViewId.DOCS)
-        .setIncludeFolders(true)
-        .setSelectFolderEnabled(true);
-      var picker = new google.picker.PickerBuilder()
+      var b = new google.picker.PickerBuilder()
         .setOAuthToken(token)
         .setDeveloperKey(API_KEY)
         .setAppId(CLIENT_ID.split('-')[0]) // project number: grants drive.file access to picked files
-        .setTitle('Select your responses spreadsheet and the photos')
-        .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
-        .addView(view)
+        .setTitle(opts.title)
+        .addView(opts.view)
         .setCallback(function (data) {
           var a = data[google.picker.Response.ACTION];
           if (a === google.picker.Action.PICKED) resolve(data[google.picker.Response.DOCUMENTS] || []);
           else if (a === google.picker.Action.CANCEL) resolve(null);
-        })
-        .build();
-      picker.setVisible(true);
+        });
+      if (opts.multiselect) b.enableFeature(google.picker.Feature.MULTISELECT_ENABLED);
+      b.build().setVisible(true);
+    });
+  }
+  // Step 1: pick the responses spreadsheet (single).
+  function pickSpreadsheet(token) {
+    return buildPicker(token, {
+      title: 'Step 1 of 2 — select your responses spreadsheet',
+      view: new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
+    }).then(function (docs) { return docs && docs[0]; });
+  }
+  // Step 2: pick the photos folder (one click) or the photos (multi-select fallback).
+  function pickPhotos(token) {
+    return buildPicker(token, {
+      title: 'Step 2 of 2 — select your photos folder (or the photos)',
+      multiselect: true,
+      view: new google.picker.DocsView(google.picker.ViewId.DOCS).setIncludeFolders(true).setSelectFolderEnabled(true)
     });
   }
 
@@ -144,24 +155,47 @@ window.NameDeck = window.NameDeck || {};
   NameDeck.googleImport = {
     configured: configured,
     // Runs the whole flow; resolves with [{ preferredName, blob }] (blobs are the photo bytes).
-    run: function () {
+    // onStatus(message) is called at each phase (for the in-app progress line).
+    run: function (onStatus) {
+      onStatus = onStatus || function () {};
       if (!configured()) return Promise.reject(new Error('Google import is not configured'));
       return ensureLibs().then(getToken).then(function (token) {
-        return showPicker(token).then(function (docs) {
-          if (!docs) return []; // cancelled
-          var sheet = null, photos = {};
-          docs.forEach(function (d) {
-            if (d.mimeType === SHEET_MIME) sheet = d;
-            else if (/^image\//.test(d.mimeType || '')) photos[d.id] = true;
-          });
-          if (!sheet) throw new Error('Please also select your responses spreadsheet');
-          return exportSheetCsv(sheet.id, token).then(function (csv) {
-            var pairs = pairsFromCsv(csv).filter(function (p) { return photos[p.fileId]; });
-            return Promise.all(pairs.map(function (p) {
-              return downloadFile(p.fileId, token).then(function (blob) {
-                return { preferredName: p.name, blob: blob };
+        return pickSpreadsheet(token).then(function (sheet) {
+          if (!sheet) return []; // cancelled
+          return pickPhotos(token).then(function (photoDocs) {
+            if (!photoDocs) return []; // cancelled
+            var folderPicked = false, pickedIds = {};
+            photoDocs.forEach(function (d) {
+              if (d.mimeType === FOLDER_MIME) folderPicked = true;
+              else if (/^image\//.test(d.mimeType || '')) pickedIds[d.id] = true;
+            });
+            onStatus('Reading responses…');
+            return exportSheetCsv(sheet.id, token).then(function (csv) {
+              var pairs = pairsFromCsv(csv);
+              // If a folder was picked, try every response's photo (folder grant should allow it);
+              // otherwise only the photos that were individually selected.
+              var candidates = pairs.filter(function (p) { return folderPicked || pickedIds[p.fileId]; });
+              if (!candidates.length) {
+                throw new Error(folderPicked
+                  ? 'No photos matched — is that the "(File responses)" folder for this form?'
+                  : 'None of the selected photos matched the responses');
+              }
+              var total = candidates.length, done = 0;
+              var tick = function () { done++; onStatus('Downloading photos… (' + done + ' of ' + total + ')'); };
+              onStatus('Downloading photos… (0 of ' + total + ')');
+              return Promise.all(candidates.map(function (p) {
+                return downloadFile(p.fileId, token).then(
+                  function (blob) { tick(); return { preferredName: p.name, blob: blob }; },
+                  function () { tick(); return null; } // tolerate individual failures
+                );
+              })).then(function (results) {
+                var students = results.filter(Boolean);
+                if (!students.length && folderPicked) {
+                  throw new Error("Couldn't open the photos in that folder — try selecting the photos individually instead.");
+                }
+                return students;
               });
-            }));
+            });
           });
         });
       });

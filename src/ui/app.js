@@ -111,6 +111,8 @@
                 '<input type="file" id="folderImport" accept="image/*" webkitdirectory multiple hidden /></label>' +
             '</div>' +
             '<button class="btn" id="importGoogle">Import from Google</button>' +
+            '<p class="import-hint">You’ll pick your responses spreadsheet, then your photos folder.</p>' +
+            '<p class="import-status" id="importStatus" hidden></p>' +
             '<p class="notice" id="storageNotice" hidden>Storage is full — new photos show now but may not be saved. Remove some students or use fewer/smaller photos.</p>' +
             '<div class="roster-list" id="rosterList"></div>' +
           '</div>' +
@@ -257,6 +259,7 @@
     document.querySelector('#settings').hidden = true;
     document.querySelector('#nameInput').value = '';
     showStorageNotice(false);
+    document.querySelector('#importStatus').hidden = true;
     renderList();
     document.querySelector('#rosterSheet').hidden = false;
     showTransport(false);
@@ -329,26 +332,32 @@
     renderList(); // show the new students right away (names + placeholder) while photos decode
   }
 
+  function setImportStatus(msg, kind) {
+    var el = document.querySelector('#importStatus');
+    el.textContent = msg;
+    el.className = 'import-status' + (kind ? ' ' + kind : '');
+    el.hidden = false;
+  }
+
   // Import from Google (Forms responses) via the Picker — names matched to photos by file ID.
   function onImportGoogle() {
     if (!ND.googleImport || !ND.googleImport.configured()) {
-      window.alert("Google import isn't set up yet — add your Google Cloud credentials in src/ui/google-import.js.");
+      setImportStatus("Google import isn't set up yet — add your credentials in google-import.js.", 'error');
       return;
     }
-    ND.googleImport.run().then(function (students) {
-      if (!students || !students.length) return;
-      var pending = students.length;
+    setImportStatus('Connecting to Google…', '');
+    ND.googleImport.run(function (msg) { setImportStatus(msg, ''); }).then(function (students) {
+      if (!students || !students.length) { setImportStatus('No students were imported.', ''); return; }
       students.forEach(function (s) {
         var stud = { id: 'r' + (++seq), preferredName: s.preferredName, photo: null, avatarSeed: s.preferredName };
         myRoster.push(stud);
-        fileToPhoto(s.blob, function (dataUrl) {
-          stud.photo = dataUrl;
-          if (--pending === 0) { var ok = save(); renderList(); showStorageNotice(!ok); }
-        });
+        fileToPhoto(s.blob, function (dataUrl) { stud.photo = dataUrl; save(); renderList(); });
       });
+      save();
       renderList();
+      setImportStatus('Imported ' + students.length + ' student' + (students.length === 1 ? '' : 's') + ' ✓', 'ok');
     }).catch(function (err) {
-      window.alert('Google import failed: ' + (err && err.message ? err.message : err));
+      setImportStatus('Import failed: ' + (err && err.message ? err.message : err), 'error');
     });
   }
 

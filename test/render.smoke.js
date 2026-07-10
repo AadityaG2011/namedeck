@@ -107,6 +107,8 @@ function fireChange(input, files) {
 
   // Google import: button present and the module loaded (unconfigured until credentials added).
   ok('Import from Google button present', !!doc.querySelector('#importGoogle'));
+  ok('Google import status line present (hidden)',
+     !!doc.querySelector('#importStatus') && doc.querySelector('#importStatus').hidden);
   ok('Google import module loaded',
      !!dom.window.NameDeck.googleImport && typeof dom.window.NameDeck.googleImport.configured === 'function');
 

@@ -138,6 +138,12 @@ body {
 .add-actions { display: flex; gap: 8px; margin-top: 8px; }
 .add-actions .btn { flex: 1; text-align: center; }
 #importGoogle { width: 100%; margin-top: 8px; }
+.import-hint { margin: 5px 0 0; font-size: 11.5px; color: var(--muted); text-align: center; }
+.import-status { margin: 8px 0 0; padding: 8px 10px; border-radius: 10px; font-size: 12.5px;
+  line-height: 1.45; background: #eef1f7; color: var(--ink); }
+.import-status[hidden] { display: none; }
+.import-status.ok { background: #e7f6ec; color: #1b7a3d; }
+.import-status.error { background: #fdecdc; color: #9a3412; }
 .notice { margin: 10px 0 0; padding: 8px 10px; border-radius: 10px; font-size: 12.5px;
   line-height: 1.45; color: #9a3412; background: #fdecdc; }
 .notice[hidden] { display: none; }
@@ -348,7 +354,7 @@ window.NameDeck = window.NameDeck || {};
   // --------------------------------------------------
 
   var SCOPE = 'https://www.googleapis.com/auth/drive.file';
-  var SHEET_MIME = 'application/vnd.google-apps.spreadsheet';
+  var FOLDER_MIME = 'application/vnd.google-apps.folder';
   var NAME_HEADER = 'Preferred Full Name';   // must match your form's name question title
   var PHOTO_HEADER = 'Your Photo';           // must match your form's photo question title
 
@@ -395,26 +401,37 @@ window.NameDeck = window.NameDeck || {};
     });
   }
 
-  // Show the Picker; resolves with the selected docs (or null if cancelled).
-  function showPicker(token) {
+  // Build + show a Picker; resolves with the selected docs (or null if cancelled).
+  function buildPicker(token, opts) {
     return new Promise(function (resolve) {
-      var view = new google.picker.DocsView(google.picker.ViewId.DOCS)
-        .setIncludeFolders(true)
-        .setSelectFolderEnabled(true);
-      var picker = new google.picker.PickerBuilder()
+      var b = new google.picker.PickerBuilder()
         .setOAuthToken(token)
         .setDeveloperKey(API_KEY)
         .setAppId(CLIENT_ID.split('-')[0]) // project number: grants drive.file access to picked files
-        .setTitle('Select your responses spreadsheet and the photos')
-        .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
-        .addView(view)
+        .setTitle(opts.title)
+        .addView(opts.view)
         .setCallback(function (data) {
           var a = data[google.picker.Response.ACTION];
           if (a === google.picker.Action.PICKED) resolve(data[google.picker.Response.DOCUMENTS] || []);
           else if (a === google.picker.Action.CANCEL) resolve(null);
-        })
-        .build();
-      picker.setVisible(true);
+        });
+      if (opts.multiselect) b.enableFeature(google.picker.Feature.MULTISELECT_ENABLED);
+      b.build().setVisible(true);
+    });
+  }
+  // Step 1: pick the responses spreadsheet (single).
+  function pickSpreadsheet(token) {
+    return buildPicker(token, {
+      title: 'Step 1 of 2 — select your responses spreadsheet',
+      view: new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
+    }).then(function (docs) { return docs && docs[0]; });
+  }
+  // Step 2: pick the photos folder (one click) or the photos (multi-select fallback).
+  function pickPhotos(token) {
+    return buildPicker(token, {
+      title: 'Step 2 of 2 — select your photos folder (or the photos)',
+      multiselect: true,
+      view: new google.picker.DocsView(google.picker.ViewId.DOCS).setIncludeFolders(true).setSelectFolderEnabled(true)
     });
   }
 
@@ -472,24 +489,47 @@ window.NameDeck = window.NameDeck || {};
   NameDeck.googleImport = {
     configured: configured,
     // Runs the whole flow; resolves with [{ preferredName, blob }] (blobs are the photo bytes).
-    run: function () {
+    // onStatus(message) is called at each phase (for the in-app progress line).
+    run: function (onStatus) {
+      onStatus = onStatus || function () {};
       if (!configured()) return Promise.reject(new Error('Google import is not configured'));
       return ensureLibs().then(getToken).then(function (token) {
-        return showPicker(token).then(function (docs) {
-          if (!docs) return []; // cancelled
-          var sheet = null, photos = {};
-          docs.forEach(function (d) {
-            if (d.mimeType === SHEET_MIME) sheet = d;
-            else if (/^image\//.test(d.mimeType || '')) photos[d.id] = true;
-          });
-          if (!sheet) throw new Error('Please also select your responses spreadsheet');
-          return exportSheetCsv(sheet.id, token).then(function (csv) {
-            var pairs = pairsFromCsv(csv).filter(function (p) { return photos[p.fileId]; });
-            return Promise.all(pairs.map(function (p) {
-              return downloadFile(p.fileId, token).then(function (blob) {
-                return { preferredName: p.name, blob: blob };
+        return pickSpreadsheet(token).then(function (sheet) {
+          if (!sheet) return []; // cancelled
+          return pickPhotos(token).then(function (photoDocs) {
+            if (!photoDocs) return []; // cancelled
+            var folderPicked = false, pickedIds = {};
+            photoDocs.forEach(function (d) {
+              if (d.mimeType === FOLDER_MIME) folderPicked = true;
+              else if (/^image\//.test(d.mimeType || '')) pickedIds[d.id] = true;
+            });
+            onStatus('Reading responses…');
+            return exportSheetCsv(sheet.id, token).then(function (csv) {
+              var pairs = pairsFromCsv(csv);
+              // If a folder was picked, try every response's photo (folder grant should allow it);
+              // otherwise only the photos that were individually selected.
+              var candidates = pairs.filter(function (p) { return folderPicked || pickedIds[p.fileId]; });
+              if (!candidates.length) {
+                throw new Error(folderPicked
+                  ? 'No photos matched — is that the "(File responses)" folder for this form?'
+                  : 'None of the selected photos matched the responses');
+              }
+              var total = candidates.length, done = 0;
+              var tick = function () { done++; onStatus('Downloading photos… (' + done + ' of ' + total + ')'); };
+              onStatus('Downloading photos… (0 of ' + total + ')');
+              return Promise.all(candidates.map(function (p) {
+                return downloadFile(p.fileId, token).then(
+                  function (blob) { tick(); return { preferredName: p.name, blob: blob }; },
+                  function () { tick(); return null; } // tolerate individual failures
+                );
+              })).then(function (results) {
+                var students = results.filter(Boolean);
+                if (!students.length && folderPicked) {
+                  throw new Error("Couldn't open the photos in that folder — try selecting the photos individually instead.");
+                }
+                return students;
               });
-            }));
+            });
           });
         });
       });
@@ -612,6 +652,8 @@ window.NameDeck = window.NameDeck || {};
                 '<input type="file" id="folderImport" accept="image/*" webkitdirectory multiple hidden /></label>' +
             '</div>' +
             '<button class="btn" id="importGoogle">Import from Google</button>' +
+            '<p class="import-hint">You’ll pick your responses spreadsheet, then your photos folder.</p>' +
+            '<p class="import-status" id="importStatus" hidden></p>' +
             '<p class="notice" id="storageNotice" hidden>Storage is full — new photos show now but may not be saved. Remove some students or use fewer/smaller photos.</p>' +
             '<div class="roster-list" id="rosterList"></div>' +
           '</div>' +
@@ -758,6 +800,7 @@ window.NameDeck = window.NameDeck || {};
     document.querySelector('#settings').hidden = true;
     document.querySelector('#nameInput').value = '';
     showStorageNotice(false);
+    document.querySelector('#importStatus').hidden = true;
     renderList();
     document.querySelector('#rosterSheet').hidden = false;
     showTransport(false);
@@ -830,26 +873,32 @@ window.NameDeck = window.NameDeck || {};
     renderList(); // show the new students right away (names + placeholder) while photos decode
   }
 
+  function setImportStatus(msg, kind) {
+    var el = document.querySelector('#importStatus');
+    el.textContent = msg;
+    el.className = 'import-status' + (kind ? ' ' + kind : '');
+    el.hidden = false;
+  }
+
   // Import from Google (Forms responses) via the Picker — names matched to photos by file ID.
   function onImportGoogle() {
     if (!ND.googleImport || !ND.googleImport.configured()) {
-      window.alert("Google import isn't set up yet — add your Google Cloud credentials in src/ui/google-import.js.");
+      setImportStatus("Google import isn't set up yet — add your credentials in google-import.js.", 'error');
       return;
     }
-    ND.googleImport.run().then(function (students) {
-      if (!students || !students.length) return;
-      var pending = students.length;
+    setImportStatus('Connecting to Google…', '');
+    ND.googleImport.run(function (msg) { setImportStatus(msg, ''); }).then(function (students) {
+      if (!students || !students.length) { setImportStatus('No students were imported.', ''); return; }
       students.forEach(function (s) {
         var stud = { id: 'r' + (++seq), preferredName: s.preferredName, photo: null, avatarSeed: s.preferredName };
         myRoster.push(stud);
-        fileToPhoto(s.blob, function (dataUrl) {
-          stud.photo = dataUrl;
-          if (--pending === 0) { var ok = save(); renderList(); showStorageNotice(!ok); }
-        });
+        fileToPhoto(s.blob, function (dataUrl) { stud.photo = dataUrl; save(); renderList(); });
       });
+      save();
       renderList();
+      setImportStatus('Imported ' + students.length + ' student' + (students.length === 1 ? '' : 's') + ' ✓', 'ok');
     }).catch(function (err) {
-      window.alert('Google import failed: ' + (err && err.message ? err.message : err));
+      setImportStatus('Import failed: ' + (err && err.message ? err.message : err), 'error');
     });
   }
 
