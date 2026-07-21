@@ -15,7 +15,11 @@ body {
   display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh;
   background: #f4f6fb; overflow: hidden;
 }
-#app { flex: 1; display: flex; flex-direction: column; padding: 12px; }
+/* Pad by the device safe-area insets (notch/status bar, home indicator) so nothing hides
+   under the iPhone bezel; the fallbacks keep it at a plain 12px in browsers with no insets. */
+#app { flex: 1; display: flex; flex-direction: column;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px))
+           calc(12px + env(safe-area-inset-bottom, 0px)) calc(12px + env(safe-area-inset-left, 0px)); }
 .screen { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 /* Wider screens: show it inside a centered phone mockup for a desktop preview. */
