@@ -1,52 +1,279 @@
-# NameDeck (web prototype — MVP)
+# NameDeck
 
 A flashcard app that helps teachers learn their students' names before day one.
-This is the **minimum viable product**: one simple mode.
 
-## What it does
 A student's photo appears. After a short delay (default **2s**), their name appears —
 giving you a moment to recall it first — then it **auto-advances** to the next student
 after another delay (default **1s**). Tap the card to reveal the name early; tap again
 to skip ahead. A gear **Settings** panel adjusts both delays.
 
 That's the whole app, on purpose. Quiz modes, spaced repetition, and typed answers are
-intentionally out of scope for the MVP.
+intentionally out of scope for now.
+
+NameDeck runs two ways from the same code:
+- as a **web app / installable PWA**, and
+- as a **native iOS app** on your iPhone (wrapped with [Capacitor](https://capacitorjs.com/)).
+
+If you just want it **on your iPhone**, jump to
+[Put it on your iPhone](#put-it-on-your-iphone-native-ios-build) — it's written so that
+anyone, starting from nothing, can get there.
 
 ## The roster (teacher-provided, on-device)
 There's no bundled sample data. Teachers build their own roster from the **My Roster**
 panel:
 - **Paste or type names** (one per line), and/or
 - **Import Photos** / **Import Folder** — one student per photo, with the file name used
-  as the name (edit any afterward).
+  as the name (edit any afterward), and/or
+- **Import from Google** — pull names + photos collected through a Google Form (works in
+  the web build; the native-app version is in progress — see [Google import](#google-import)).
 
-Photos are downscaled and saved **on the device** (localStorage in this web prototype).
-A student with no photo yet shows a generated avatar, so a roster can be built
-names-first and photographed later. Until any students are added, the deck shows an
-empty state.
+Photos are downscaled and saved **on the device** (localStorage). A student with no photo
+yet shows a generated avatar, so a roster can be built names-first and photographed later.
+Until any students are added, the deck shows an empty state.
 
 ## Privacy stance
 - **Local-first**: the roster and photos live on the teacher's device; nothing is sent
   to a server.
 - **No facial recognition. No biometrics.** The app only *displays* an image.
 
-## Installable (PWA)
-The built app is a Progressive Web App — deploy `dist/` over HTTPS and it's installable
-(Add to Home Screen) with an app icon and **offline** support via a service worker.
+---
 
-## How to run
+## How to run (web)
 **Easiest:** open `dist/index.html` in any browser.
 
-**From source:**
+**From source** (any static server works):
 ```bash
 python3 -m http.server 8000   # then open http://localhost:8000/
 ```
+
+**Build the bundle** (concatenates `src/` into `dist/index.html` + PWA assets):
+```bash
+node build.js
+```
+
+**Installable (PWA):** the built app is a Progressive Web App — deploy `dist/` over HTTPS
+and it's installable (Add to Home Screen) with an app icon and **offline** support via a
+service worker.
+
+---
+
+## Put it on your iPhone (native iOS build)
+
+This is a complete, start-from-nothing guide. Follow it top to bottom and you'll have
+NameDeck running on your own iPhone. Budget ~30–45 minutes the first time.
+
+> **Why a Mac?** Building an iOS app requires **Xcode**, which only runs on macOS. There's
+> no way around this — you need access to a Mac.
+
+### What you need first
+- A **Mac** (macOS recent enough for the current Xcode).
+- An **iPhone** and a cable to connect it to the Mac:
+  - **iPhone 15 or newer** → a **USB-C to USB-C** cable.
+  - **iPhone 14 or older** → a **Lightning** cable (your charging cable usually works for data).
+- A **free Apple ID** (the same one you use for the App Store — no paid account needed).
+- ~30–45 minutes.
+
+### Step 1 — Install the tools (on the Mac)
+
+**1a. Xcode** — install it from the **Mac App Store** (it's large; give it time). Open it
+once and, if prompted to install components, make sure the **iOS** platform is selected.
+
+**1b. Homebrew** (a package manager that makes the next installs easy) — paste this into
+**Terminal** and follow the prompts:
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+> When it asks for your password, type your **Mac login password** — the characters won't
+> show as you type (that's normal), just type it and press Return. Afterward it may print
+> two "Next steps" `echo`/`eval` commands to add Homebrew to your PATH — run those if shown.
+
+**1c. Node.js** and **CocoaPods** (via Homebrew):
+```bash
+brew install node
+brew install cocoapods
+```
+Verify they're installed:
+```bash
+node -v      # e.g. v24.x
+npm -v       # e.g. 11.x
+pod --version
+```
+
+### Step 2 — Get the code
+Clone this repository:
+```bash
+git clone https://github.com/AadityaG2011/namedeck.git
+cd namedeck
+```
+> **GitHub note:** if a later `git push` ever fails with *"Password authentication is not
+> supported"*, that's expected — GitHub no longer accepts your account password for git.
+> Run `gh auth login` (install with `brew install gh`) and log in through the browser, or
+> use a Personal Access Token as the password. Cloning a public repo doesn't need this.
+
+### Step 3 — Build the web bundle and sync it into the iOS project
+```bash
+npm install          # installs the build/test tooling and Capacitor
+node build.js        # builds dist/ (the app the native shell loads)
+npx cap sync ios     # copies dist/ into the iOS project + updates native bits
+npx cap open ios     # opens the project in Xcode
+```
+> If `ios/` doesn't exist yet (fresh checkout without it), run `npx cap add ios` once
+> before `npx cap sync ios`.
+
+Xcode will open the project. If it shows **"Update to recommended settings,"** click it →
+**Perform Changes** (it's safe — just modern defaults).
+
+### Step 4 — Sign the app in Xcode
+In the left sidebar, click the top blue **"App"** item → select the **"App" target** →
+**Signing & Capabilities** tab:
+1. Check **Automatically manage signing**.
+2. **Team** → pick your Apple ID. If none is listed, choose **Add an Account…**, sign in
+   with your free Apple ID, then select your personal team.
+3. If it complains the **Bundle Identifier** is taken, change it to something unique to
+   you, e.g. `com.yourname.namedeck`.
+
+When there are no red errors in this panel, signing is set.
+
+### Step 5 — Prepare your iPhone
+1. **Connect** the iPhone to the Mac with the cable. On the phone, tap **Trust** ("Trust
+   This Computer?") and enter your passcode.
+2. **Enable Developer Mode** (required on iOS 16 and later): on the iPhone go to
+   **Settings → Privacy & Security → Developer Mode** → turn it **On** → **Restart** when
+   asked. After the reboot, unlock the phone and tap **Turn On** at the prompt.
+   > If you don't see "Developer Mode," it usually appears only after Xcode has tried to
+   > install to the phone once — keep it plugged in and it'll show up.
+
+### Step 6 — Run it
+1. In Xcode's top toolbar **device dropdown**, select **your iPhone**.
+2. Click **▶ Run**.
+3. If macOS asks to use a keychain key (*"codesign wants to access… Apple Development…"*),
+   enter your **Mac login password** and click **Always Allow**.
+4. First launch is blocked as an untrusted developer. On the phone: **Settings → General →
+   VPN & Device Management** → tap your developer certificate → **Trust**. Then open the
+   **NameDeck** icon on your home screen.
+
+That's it — NameDeck is running natively on your iPhone. 🎉
+
+### The 7-day catch (free Apple ID)
+Because you signed with a **free** Apple ID, the installed app **stops opening after ~7
+days**. To refresh it, just plug the phone back in and **▶ Run** again from Xcode. A paid
+**Apple Developer account ($99/yr)** removes this limit and unlocks TestFlight and the App
+Store.
+
+### Faster check: the Simulator (no signing, no phone)
+To just see the app without any signing setup, pick a simulator (e.g. **iPhone 15**) in
+the device dropdown and click **▶ Run**. Good for a quick look; use a real device to test
+the actual feel and the photo picker.
+
+### After you change the code
+The native app bundles a snapshot of `dist/`, so re-sync after edits:
+```bash
+node build.js
+npx cap sync ios
+```
+Then **▶ Run** again in Xcode.
+
+---
+
+## Troubleshooting
+
+**`git push` → "Password authentication is not supported"**
+GitHub doesn't accept your account password for git. Run `gh auth login`
+(`brew install gh`) and authenticate in the browser, or create a Personal Access Token
+(GitHub → Settings → Developer settings → Personal access tokens) and use *that* as the
+password.
+
+**"No profiles for 'com.…' were found"**
+The bundle ID isn't unique or no device is registered yet. Change the **Bundle Identifier**
+(Signing & Capabilities) to something like `com.yourname.namedeck`, and connect your iPhone
+— free provisioning creates the profile once a device is attached.
+
+**"Communication with Apple failed"**
+Usually transient. Check your internet, click **Try Again** in the signing panel, confirm
+your Apple ID is listed under **Xcode → Settings (⌘,) → Accounts**, and if it persists,
+quit and reopen Xcode.
+
+**"codesign wants to access key … in your keychain"**
+That's macOS asking to use your new signing certificate. Enter your **Mac login password**
+and click **Always Allow** (not just Allow) so it doesn't ask on every build.
+
+**"Developer Mode disabled"**
+Enable it on the phone: **Settings → Privacy & Security → Developer Mode → On → Restart**
+(see Step 5).
+
+**"Untrusted Developer" when the app launches**
+**Settings → General → VPN & Device Management** → tap your developer certificate →
+**Trust** (see Step 6).
+
+**The app opened before but now won't**
+The free-account 7-day signing likely expired — plug in and **▶ Run** again from Xcode.
+
+---
+
+## Google import
+The **Import from Google** button lets a teacher collect student names + photos through a
+Google Form and pull them straight into the roster, matched automatically — no renaming
+files or matching names to faces by hand.
+
+- In the **web build** it's fully working (it uses Google Sign-In + the Google Picker with
+  the narrow `drive.file` permission — per-file access only).
+- In the **native iOS app** it's **in progress** — Google deliberately blocks its sign-in
+  inside an app's embedded webview, so the native version routes sign-in through the real
+  browser and hands the result back to the app.
+
+### Set up the Google Form (one time)
+
+**Fastest — copy the ready-made template.** It already has both questions with the exact
+titles the importer needs, so there's nothing to name by hand:
+
+1. Open **[this template form and click "Make a copy"](https://docs.google.com/forms/d/1LPtee-jJjrAMUg4oLP0DvetcocHsgyT5nTZqiwZ0jt8/copy)** — a copy lands in your own Google Drive.
+2. Link a spreadsheet: open **your copy's** **Responses** tab → click the green **Link to
+   Sheets** icon → **Create a new spreadsheet**.
+3. **Send** the form to your students. Each submits their name + one photo. (Google
+   automatically creates a **"<Form name> (File responses)"** folder in your Drive for the
+   uploaded photos.)
+
+Then skip to [Import into NameDeck](#import-into-namedeck-web-build).
+
+**Or build the form by hand.** The importer looks for two specific question titles, so
+**name them exactly** (including capitalization):
+
+1. Create a form at **[forms.google.com](https://forms.google.com)**.
+2. Add a **Short answer** question titled exactly **`Preferred Full Name`**.
+3. Add a **File upload** question titled exactly **`Your Photo`** — allow **image** files,
+   limit to **1 file**. (This makes the form require Google sign-in and auto-creates the
+   "(File responses)" folder in your Drive.)
+4. Link a spreadsheet: **Responses** tab → **Link to Sheets** → **Create a new spreadsheet**.
+5. **Send** it to your students.
+
+> Want different question wording? Change `NAME_HEADER` / `PHOTO_HEADER` at the top of
+> `src/ui/google-import.js` to match your titles.
+
+### Import into NameDeck (web build)
+1. In the app, open **My Roster → Import from Google**.
+2. **Sign in** with the Google account that **owns** the form (and its Drive folder).
+3. **Step 1** — select your **responses spreadsheet**.
+4. **Step 2** — select the **"(File responses)" folder** (one tap grabs every photo), or
+   pick the photos individually.
+5. NameDeck reads the sheet, matches each name to its photo, downloads them, and adds the
+   students — with a progress line as it goes.
+
+### Building your own copy (credentials)
+If you're building your **own** copy of NameDeck, the committed Google credentials are
+locked to this project's web origins and won't work for you. Create your own **Google
+Cloud** project (enable the Picker API + Drive API, make an OAuth Client ID + API key) and
+paste them into `src/ui/google-import.js`. The core app and manual photo imports work
+without any of this.
+
+---
 
 ## Structure
 ```
 src/
   core/avatar.js        # generated-avatar fallback when there's no photo
-  core/roster-store.js  # on-device roster persistence (the storage seam for iOS)
-  ui/app.js             # the one-mode UI (web-only; rewritten in SwiftUI later)
+  core/roster-store.js  # on-device roster persistence
+  ui/app.js             # the one-mode UI
+  ui/google-import.js   # optional "Import from Google" (Picker + drive.file)
   ui/styles.css         # styling
   pwa/                  # manifest, service worker, and generated app icons
 index.html              # dev entry
@@ -54,8 +281,15 @@ dist/index.html         # built single-file app shell (+ PWA assets alongside)
 build.js                # bundles src/ into dist/ and copies PWA assets
 scripts/make-icons.js   # generates the PWA icons (zero dependencies)
 test/                   # headless render test (npm test)
+capacitor.config.json   # Capacitor config (app id/name, webDir=dist)
+ios/                    # the native iOS project (opened in Xcode)
 ```
 
-## Next steps
-Validate the feel → native SwiftUI iOS app (local-first) → then layer the
-quiz/spaced-repetition features back on.
+## Tests
+```bash
+npm test   # headless jsdom smoke test of the full flow
+```
+
+## Roadmap
+Validate the feel (web + Capacitor iOS) → finish native Google import → native **SwiftUI**
+iOS app (local-first) → then layer the quiz / spaced-repetition features back on.

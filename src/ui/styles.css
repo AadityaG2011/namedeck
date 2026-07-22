@@ -19,7 +19,7 @@ body {
    under the iPhone bezel; the fallbacks keep it at a plain 12px in browsers with no insets. */
 #app { flex: 1; display: flex; flex-direction: column;
   padding: calc(12px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px))
-           calc(12px + env(safe-area-inset-bottom, 0px)) calc(12px + env(safe-area-inset-left, 0px)); }
+           env(safe-area-inset-bottom, 12px) calc(12px + env(safe-area-inset-left, 0px)); }
 .screen { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 /* Wider screens: show it inside a centered phone mockup for a desktop preview. */
