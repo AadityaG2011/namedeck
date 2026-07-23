@@ -28,8 +28,9 @@
   // First-ever launch: seed a small demo roster of well-known historical figures so a brand-new
   // user immediately sees the app working (portrait -> name -> auto-advance). Real people are
   // used (not fictional characters) because their Wikipedia portraits are clean photos with no
-  // name printed in them. Portraits are fetched from Wikipedia at runtime (see loadWikiPhoto),
-  // falling back to a generated avatar offline. It's saved like any roster — fully editable, and
+  // name printed in them. Portraits are downloaded from Wikipedia once and stored on-device (see
+  // hydrateDemoPhotos), so both the card and the roster list show them; until then (or offline)
+  // a generated avatar stands in. It's saved like any roster — fully editable, and
   // "Clear All" removes it — and the one-time "seeded" flag means it's never re-added after the
   // user clears or edits their roster.
   var DEMO_ROSTER = [
@@ -650,32 +651,50 @@
       img.onerror = fallback;
       img.src = p.photo;
       av.appendChild(img);
-    } else if (p.wiki) {
-      var wimg = document.createElement('img');
-      wimg.className = 'photo'; wimg.alt = 'portrait';
-      wimg.onerror = fallback;
-      av.appendChild(wimg);
-      loadWikiPhoto(p, wimg, fallback); // demo roster: fetch the portrait from Wikipedia
     } else {
-      fallback(); // named student, no photo yet
+      fallback(); // no photo yet (a named student, or a demo portrait still downloading)
     }
     renderNameSlot();
     updateControls();
     if (!paused) armReveal();
   }
 
-  // Fetch a public-domain portrait from Wikipedia's REST API (used by the first-run demo
-  // roster). Falls back to a generated avatar on any failure (offline, blocked, or no image).
-  function loadWikiPhoto(p, imgEl, fallback) {
-    if (typeof fetch !== 'function' || !p.wiki) { fallback(); return; }
-    fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(p.wiki))
-      .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
-      .then(function (data) {
-        if (current !== p) return; // a newer card is showing; ignore this stale result
-        var src = data && data.thumbnail && data.thumbnail.source;
-        if (src) { imgEl.src = src; } else { fallback(); }
-      })
-      .catch(function () { if (current === p) fallback(); });
+  // Download the demo roster's Wikipedia portraits ONCE and store them like normal photos, so
+  // both the flashcard and the roster list show real images reliably (and offline afterward).
+  // Runs on every load but only acts on demo students still missing a photo (so it also retries
+  // any that failed on a previous, offline launch). Anything already downloaded is left alone.
+  function hydrateDemoPhotos() {
+    if (typeof fetch !== 'function') return;
+    myRoster.filter(function (s) { return s.wiki && !s.photo; }).forEach(function (s) {
+      fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(s.wiki))
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+        .then(function (data) {
+          var src = data && data.thumbnail && data.thumbnail.source;
+          if (!src) return Promise.reject();
+          return fetch(src.replace(/\/\d+px-/, '/480px-')); // a bit crisper than the 330px default
+        })
+        .then(function (r) { return r.ok ? r.blob() : Promise.reject(); })
+        .then(function (blob) {
+          return new Promise(function (resolve) { fileToPhoto(blob, function (url) { s.photo = url; resolve(); }); });
+        })
+        .then(function () {
+          save();
+          if (!document.querySelector('#rosterSheet').hidden) renderList(); // update the list if open
+          if (current && current.id === s.id) swapCardPhoto(s.photo);       // update the shown card in place
+        })
+        .catch(function () { /* keep the avatar; retry on the next launch */ });
+    });
+  }
+
+  // Swap the current card's image without resetting its reveal state or timers.
+  function swapCardPhoto(dataUrl) {
+    var av = document.querySelector('#avatar');
+    if (!av) return;
+    av.innerHTML = '';
+    var img = document.createElement('img');
+    img.className = 'photo'; img.alt = 'portrait';
+    img.src = dataUrl;
+    av.appendChild(img);
   }
 
   // Render the name slot for the current state (hidden vs revealed, playing vs paused).
@@ -779,5 +798,6 @@
   }
 
   render();
-  setupDeepLinks(); // listen for the namedeck:// handoff (native only; no-op on the web)
+  setupDeepLinks();    // listen for the namedeck:// handoff (native only; no-op on the web)
+  hydrateDemoPhotos(); // download + store the demo roster's portraits (no-op once they're saved)
 })();
