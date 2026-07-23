@@ -41,7 +41,7 @@
     { name: 'Amelia Earhart',  wiki: 'Amelia_Earhart' },
     { name: 'Nikola Tesla',    wiki: 'Nikola_Tesla' },
     { name: 'Mark Twain',      wiki: 'Mark_Twain' },
-    { name: 'Ada Lovelace',    wiki: 'Ada_Lovelace' }
+    { name: 'Grace Hopper',    wiki: 'Grace_Hopper' }
   ];
   if (!myRoster.length && !ND.rosterStore.seeded()) {
     myRoster = DEMO_ROSTER.map(function (c, i) {
@@ -481,9 +481,9 @@
       return;
     }
     el.innerHTML = myRoster.map(function (s) {
-      var thumb = s.photo
-        ? '<img src="' + escapeHtml(s.photo) + '" alt="" />'
-        : ND.avatar(s.avatarSeed || s.preferredName, 44);
+      // Always render the avatar; overlay the photo on top, so a failed image reveals the avatar.
+      var thumb = ND.avatar(s.avatarSeed || s.preferredName, 44) +
+        (s.photo ? '<img class="rthumb-photo" src="' + escapeHtml(s.photo) + '" alt="" />' : '');
       return '<div class="rrow" data-id="' + escapeHtml(s.id) + '">' +
           '<div class="rthumb">' + thumb + '</div>' +
           '<input class="rname" value="' + escapeHtml(s.preferredName) + '" aria-label="Student name" readonly />' +
@@ -493,6 +493,10 @@
           '<button class="btn tiny remove" aria-label="Remove">&times;</button>' +
         '</div>';
     }).join('');
+    // If a photo URL fails to load, drop it so the avatar underneath shows (no broken-image icon).
+    Array.prototype.forEach.call(el.querySelectorAll('.rthumb-photo'), function (img) {
+      img.onerror = function () { img.remove(); };
+    });
   }
 
   function rowStudent(target) {
