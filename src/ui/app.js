@@ -28,9 +28,9 @@
   // First-ever launch: seed a small demo roster of well-known historical figures so a brand-new
   // user immediately sees the app working (portrait -> name -> auto-advance). Real people are
   // used (not fictional characters) because their Wikipedia portraits are clean photos with no
-  // name printed in them. Portraits are downloaded from Wikipedia once and stored on-device (see
-  // hydrateDemoPhotos), so both the card and the roster list show them; until then (or offline)
-  // a generated avatar stands in. It's saved like any roster — fully editable, and
+  // name printed in them. Each portrait's image URL is resolved from Wikipedia once and stored
+  // (see hydrateDemoPhotos), so both the card and the roster list show it; until then a generated
+  // avatar stands in. It's saved like any roster — fully editable, and
   // "Clear All" removes it — and the one-time "seeded" flag means it's never re-added after the
   // user clears or edits their roster.
   var DEMO_ROSTER = [
@@ -659,10 +659,10 @@
     if (!paused) armReveal();
   }
 
-  // Download the demo roster's Wikipedia portraits ONCE and store them like normal photos, so
-  // both the flashcard and the roster list show real images reliably (and offline afterward).
-  // Runs on every load but only acts on demo students still missing a photo (so it also retries
-  // any that failed on a previous, offline launch). Anything already downloaded is left alone.
+  // Resolve each demo student's Wikipedia portrait URL once and store it as their photo, so both
+  // the flashcard and the roster list show it via a plain <img src> (which loads cross-origin
+  // without CORS — unlike fetching the bytes, which the iOS webview blocks). Runs on every load
+  // but only for demo students still missing a photo, so it also retries any that failed before.
   function hydrateDemoPhotos() {
     if (typeof fetch !== 'function') return;
     myRoster.filter(function (s) { return s.wiki && !s.photo; }).forEach(function (s) {
@@ -670,30 +670,25 @@
         .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
         .then(function (data) {
           var src = data && data.thumbnail && data.thumbnail.source;
-          if (!src) return Promise.reject();
-          return fetch(src.replace(/\/\d+px-/, '/480px-')); // a bit crisper than the 330px default
-        })
-        .then(function (r) { return r.ok ? r.blob() : Promise.reject(); })
-        .then(function (blob) {
-          return new Promise(function (resolve) { fileToPhoto(blob, function (url) { s.photo = url; resolve(); }); });
-        })
-        .then(function () {
+          if (!src) return;
+          s.photo = src; // store the portrait URL (loaded by <img> on the card and in the list)
           save();
           if (!document.querySelector('#rosterSheet').hidden) renderList(); // update the list if open
-          if (current && current.id === s.id) swapCardPhoto(s.photo);       // update the shown card in place
+          if (current && current.id === s.id) swapCardPhoto(s);            // update the shown card in place
         })
         .catch(function () { /* keep the avatar; retry on the next launch */ });
     });
   }
 
-  // Swap the current card's image without resetting its reveal state or timers.
-  function swapCardPhoto(dataUrl) {
+  // Swap the current card's image in place (no reveal/timer reset), with an avatar fallback.
+  function swapCardPhoto(p) {
     var av = document.querySelector('#avatar');
-    if (!av) return;
+    if (!av || current !== p) return;
     av.innerHTML = '';
     var img = document.createElement('img');
     img.className = 'photo'; img.alt = 'portrait';
-    img.src = dataUrl;
+    img.onerror = function () { if (current === p) av.innerHTML = ND.avatar(p.avatarSeed || p.preferredName, 320); };
+    img.src = p.photo;
     av.appendChild(img);
   }
 
