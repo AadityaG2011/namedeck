@@ -19,9 +19,9 @@ If you just want it **on your iPhone**, jump to
 anyone, starting from nothing, can get there.
 
 ## The roster (teacher-provided, on-device)
-On first open, NameDeck shows a small **demo roster** of public-domain characters (Sherlock
-Holmes, Robin Hood, Mowgli, …) — with portraits pulled from Wikipedia at runtime — so a new
-user sees the flow working right away. It's fully editable, and **Clear All** in *My Roster*
+On first open, NameDeck shows a small **demo roster** of well-known historical figures (Albert
+Einstein, Marie Curie, Rosa Parks, …) — with portraits pulled from Wikipedia at runtime — so a
+new user sees the flow working right away. It's fully editable, and **Clear All** in *My Roster*
 removes it for good (it's never re-added). Teachers then build their own roster from the
 **My Roster** panel:
 - **Paste or type names** (one per line), and/or

@@ -64,6 +64,7 @@ function fireChange(input, files) {
   ok('changing reveal slider updates label to 1s', doc.querySelector('#delayVal').textContent === '1s');
   gapSlider.value = '1'; gapSlider.dispatchEvent(new dom.window.Event('input'));
   ok('changing gap slider updates label to 1s', doc.querySelector('#gapVal').textContent === '1s');
+  ok('settings has a Privacy Policy link', !!doc.querySelector('#privacyLink'));
   doc.querySelector('#resetSettings').click();
   ok('Reset All opens a confirmation dialog', !doc.querySelector('#confirm').hidden);
   ok('reset does not apply until confirmed', doc.querySelector('#delayVal').textContent === '1s');

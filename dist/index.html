@@ -67,6 +67,11 @@ body {
 .control label b { color: var(--ink); }
 .control input[type=range] { width: 100%; accent-color: var(--accent); }
 
+/* Small muted "Privacy Policy" link at the bottom of the settings panel. */
+.privacy-link { display: block; text-align: center; margin-top: 16px; font-size: 12.5px;
+  color: var(--muted); text-decoration: none; }
+.privacy-link:hover { text-decoration: underline; }
+
 /* Card fills the screen; the image is the star. */
 .card {
   flex: 1; display: flex; flex-direction: column;
@@ -610,21 +615,22 @@ window.NameDeck = window.NameDeck || {};
   var myRoster = ND.rosterStore.load(); // the teacher's own students (may be empty)
   var seq = 0;                          // helps make unique ids within a session
 
-  // First-ever launch: seed a small demo roster of public-domain literary characters so a
-  // brand-new user immediately sees the app working (portrait -> name -> auto-advance). The
-  // portraits are fetched from Wikipedia at runtime (see loadWikiPhoto), falling back to a
-  // generated avatar offline. It's saved like any roster — fully editable, and "Clear All"
-  // removes it — and the one-time "seeded" flag means it's never re-added after the user
-  // clears or edits their roster.
+  // First-ever launch: seed a small demo roster of well-known historical figures so a brand-new
+  // user immediately sees the app working (portrait -> name -> auto-advance). Real people are
+  // used (not fictional characters) because their Wikipedia portraits are clean photos with no
+  // name printed in them. Portraits are fetched from Wikipedia at runtime (see loadWikiPhoto),
+  // falling back to a generated avatar offline. It's saved like any roster — fully editable, and
+  // "Clear All" removes it — and the one-time "seeded" flag means it's never re-added after the
+  // user clears or edits their roster.
   var DEMO_ROSTER = [
-    { name: 'Sherlock Holmes',  wiki: 'Sherlock_Holmes' },
-    { name: 'Robin Hood',       wiki: 'Robin_Hood' },
-    { name: 'Tom Sawyer',       wiki: 'Tom_Sawyer' },
-    { name: 'Huckleberry Finn', wiki: 'Huckleberry_Finn' },
-    { name: 'Mowgli',           wiki: 'Mowgli' },
-    { name: 'Dorothy Gale',     wiki: 'Dorothy_Gale' },
-    { name: 'Long John Silver', wiki: 'Long_John_Silver' },
-    { name: 'Peter Pan',        wiki: 'Peter_Pan_(character)' }
+    { name: 'Albert Einstein', wiki: 'Albert_Einstein' },
+    { name: 'Marie Curie',     wiki: 'Marie_Curie' },
+    { name: 'Rosa Parks',      wiki: 'Rosa_Parks' },
+    { name: 'Frida Kahlo',     wiki: 'Frida_Kahlo' },
+    { name: 'Amelia Earhart',  wiki: 'Amelia_Earhart' },
+    { name: 'Nikola Tesla',    wiki: 'Nikola_Tesla' },
+    { name: 'Mark Twain',      wiki: 'Mark_Twain' },
+    { name: 'Ada Lovelace',    wiki: 'Ada_Lovelace' }
   ];
   if (!myRoster.length && !ND.rosterStore.seeded()) {
     myRoster = DEMO_ROSTER.map(function (c, i) {
@@ -698,6 +704,7 @@ window.NameDeck = window.NameDeck || {};
               '<label>Next student after <b id="gapVal">' + gap + 's</b></label>' +
               '<input id="gap" type="range" min="1" max="15" step="1" value="' + gap + '" />' +
             '</div>' +
+            '<a class="privacy-link" id="privacyLink" href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>' +
           '</div>' +
           '<div class="sheet-foot">' +
             '<button class="btn ghost" id="resetSettings">Reset All</button>' +
@@ -780,6 +787,7 @@ window.NameDeck = window.NameDeck || {};
     document.querySelector('#closeSettings').addEventListener('click', closeSettings);
     document.querySelector('#doneSettings').addEventListener('click', closeSettings);
     document.querySelector('#resetSettings').addEventListener('click', resetSettings);
+    document.querySelector('#privacyLink').addEventListener('click', onPrivacyClick);
 
     document.querySelector('#rosterBtn').addEventListener('click', toggleRoster);
     document.querySelector('#closeRoster').addEventListener('click', closeRoster);
@@ -978,9 +986,19 @@ window.NameDeck = window.NameDeck || {};
   // the sheet, then returns via a namedeck:// link carrying the token + {name, fileId} list.
   // We finish here by downloading the photos with that token. See setupDeepLinks / finishNative.
   var NATIVE_IMPORT_URL = 'https://namedeck.netlify.app/native-import.html';
+  var PRIVACY_URL = 'https://namedeck.netlify.app/privacy.html';
 
   function isNative() {
     return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  }
+
+  // Open the privacy page. On the web the anchor's target=_blank handles it; natively we open
+  // the system browser (with a Done button) so the app's own webview isn't navigated away.
+  function onPrivacyClick(e) {
+    if (isNative()) {
+      e.preventDefault();
+      try { window.Capacitor.Plugins.Browser.open({ url: PRIVACY_URL }); } catch (err) { /* ignore */ }
+    }
   }
 
   function startNativeGoogleImport() {
