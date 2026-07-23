@@ -25,6 +25,30 @@
   var myRoster = ND.rosterStore.load(); // the teacher's own students (may be empty)
   var seq = 0;                          // helps make unique ids within a session
 
+  // First-ever launch: seed a small demo roster of public-domain literary characters so a
+  // brand-new user immediately sees the app working (portrait -> name -> auto-advance). The
+  // portraits are fetched from Wikipedia at runtime (see loadWikiPhoto), falling back to a
+  // generated avatar offline. It's saved like any roster — fully editable, and "Clear All"
+  // removes it — and the one-time "seeded" flag means it's never re-added after the user
+  // clears or edits their roster.
+  var DEMO_ROSTER = [
+    { name: 'Sherlock Holmes',  wiki: 'Sherlock_Holmes' },
+    { name: 'Robin Hood',       wiki: 'Robin_Hood' },
+    { name: 'Tom Sawyer',       wiki: 'Tom_Sawyer' },
+    { name: 'Huckleberry Finn', wiki: 'Huckleberry_Finn' },
+    { name: 'Mowgli',           wiki: 'Mowgli' },
+    { name: 'Dorothy Gale',     wiki: 'Dorothy_Gale' },
+    { name: 'Long John Silver', wiki: 'Long_John_Silver' },
+    { name: 'Peter Pan',        wiki: 'Peter_Pan_(character)' }
+  ];
+  if (!myRoster.length && !ND.rosterStore.seeded()) {
+    myRoster = DEMO_ROSTER.map(function (c, i) {
+      return { id: 'seed' + (i + 1), preferredName: c.name, photo: null, wiki: c.wiki, avatarSeed: c.name };
+    });
+    ND.rosterStore.save(myRoster);
+    ND.rosterStore.markSeeded();
+  }
+
   // Feather "settings" gear icon (inline so the app stays zero-dependency).
   var GEAR_SVG =
     '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" ' +
@@ -547,12 +571,32 @@
       img.onerror = fallback;
       img.src = p.photo;
       av.appendChild(img);
+    } else if (p.wiki) {
+      var wimg = document.createElement('img');
+      wimg.className = 'photo'; wimg.alt = 'portrait';
+      wimg.onerror = fallback;
+      av.appendChild(wimg);
+      loadWikiPhoto(p, wimg, fallback); // demo roster: fetch the portrait from Wikipedia
     } else {
       fallback(); // named student, no photo yet
     }
     renderNameSlot();
     updateControls();
     if (!paused) armReveal();
+  }
+
+  // Fetch a public-domain portrait from Wikipedia's REST API (used by the first-run demo
+  // roster). Falls back to a generated avatar on any failure (offline, blocked, or no image).
+  function loadWikiPhoto(p, imgEl, fallback) {
+    if (typeof fetch !== 'function' || !p.wiki) { fallback(); return; }
+    fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(p.wiki))
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+      .then(function (data) {
+        if (current !== p) return; // a newer card is showing; ignore this stale result
+        var src = data && data.thumbnail && data.thumbnail.source;
+        if (src) { imgEl.src = src; } else { fallback(); }
+      })
+      .catch(function () { if (current === p) fallback(); });
   }
 
   // Render the name slot for the current state (hidden vs revealed, playing vs paused).

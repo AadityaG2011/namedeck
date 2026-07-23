@@ -26,7 +26,17 @@ function fireChange(input, files) {
 }
 
 (async function () {
-  // --- A. Initial state: empty deck (no bundled sample), PWA wired, controls present ---
+  // --- A0. First run seeds a public-domain demo roster so a new user sees it working ---
+  ok('first run shows a card (seeded demo), not the empty state',
+     !!doc.querySelector('.avatar img, .avatar svg') && !doc.querySelector('.empty-deck'));
+  doc.querySelector('#rosterBtn').click();
+  ok('first run seeds demo students into the roster', rowCount() > 0);
+  doc.querySelector('#clearRoster').click();
+  doc.querySelector('#confirmOk').click();
+  doc.querySelector('#useRoster').click();
+  // Roster is now empty and the seeded flag is set — the rest of the test builds from scratch.
+
+  // --- A. Initial state: empty deck, PWA wired, controls present ---
   ok('empty state shown when no students', !!doc.querySelector('.empty-deck'));
   ok('empty state has an "Add roster" button', !!doc.querySelector('#emptyAdd'));
   ok('no card avatar while empty', !doc.querySelector('.avatar img, .avatar svg'));

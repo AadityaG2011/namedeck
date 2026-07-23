@@ -13,6 +13,7 @@ window.NameDeck = window.NameDeck || {};
 
 (function () {
   var KEY = 'namedeck.roster.v1';
+  var SEEDED_KEY = 'namedeck.seeded.v1'; // set once the first-run demo roster has been placed
 
   NameDeck.rosterStore = {
     load: function () {
@@ -34,6 +35,14 @@ window.NameDeck = window.NameDeck || {};
     },
     clear: function () {
       try { localStorage.removeItem(KEY); } catch (e) { /* nothing to do */ }
+    },
+    // Has the one-time demo roster already been seeded? Used so we place it only on the very
+    // first launch and never re-add it after the user clears or edits their roster.
+    seeded: function () {
+      try { return localStorage.getItem(SEEDED_KEY) === '1'; } catch (e) { return false; }
+    },
+    markSeeded: function () {
+      try { localStorage.setItem(SEEDED_KEY, '1'); } catch (e) { /* nothing to do */ }
     }
   };
 })();

@@ -19,8 +19,11 @@ If you just want it **on your iPhone**, jump to
 anyone, starting from nothing, can get there.
 
 ## The roster (teacher-provided, on-device)
-There's no bundled sample data. Teachers build their own roster from the **My Roster**
-panel:
+On first open, NameDeck shows a small **demo roster** of public-domain characters (Sherlock
+Holmes, Robin Hood, Mowgli, …) — with portraits pulled from Wikipedia at runtime — so a new
+user sees the flow working right away. It's fully editable, and **Clear All** in *My Roster*
+removes it for good (it's never re-added). Teachers then build their own roster from the
+**My Roster** panel:
 - **Paste or type names** (one per line), and/or
 - **Import Photos** / **Import Folder** — one student per photo, with the file name used
   as the name (edit any afterward), and/or
@@ -29,7 +32,8 @@ panel:
 
 Photos are downscaled and saved **on the device** (localStorage). A student with no photo
 yet shows a generated avatar, so a roster can be built names-first and photographed later.
-Until any students are added, the deck shows an empty state.
+Once the demo (or your own roster) is cleared, the deck shows an empty state until you add
+students.
 
 ## Privacy stance
 - **Local-first**: the roster and photos live on the teacher's device; nothing is sent
@@ -66,51 +70,69 @@ NameDeck running on your own iPhone. Budget ~30–45 minutes the first time.
 > no way around this — you need access to a Mac.
 
 ### What you need first
-- A **Mac** (macOS recent enough for the current Xcode).
+- A **Mac** (macOS recent enough for the current Xcode) with **~15 GB free disk** (Xcode is big).
 - An **iPhone** and a cable to connect it to the Mac:
   - **iPhone 15 or newer** → a **USB-C to USB-C** cable.
   - **iPhone 14 or older** → a **Lightning** cable (your charging cable usually works for data).
 - A **free Apple ID** (the same one you use for the App Store — no paid account needed).
-- ~30–45 minutes.
+- ~30–45 minutes (mostly waiting on downloads).
+
+Every command below goes in the **Terminal** app (press ⌘-Space, type "Terminal", Enter).
+Each of the four tools has a quick "already have it?" check so you can skip what's installed.
 
 ### Step 1 — Install the tools (on the Mac)
 
-**1a. Xcode** — install it from the **Mac App Store** (it's large; give it time). Open it
-once and, if prompted to install components, make sure the **iOS** platform is selected.
+**1a. Xcode**
+- *Already have it?* Run `xcodebuild -version`. If it prints a version (e.g. `Xcode 16.x`),
+  skip to **1b**.
+- Otherwise, open the **Mac App Store**, search **Xcode**, and install it. It's several GB,
+  so this takes a while.
+- **Launch Xcode once** after it installs. On first launch it offers to install additional
+  components / platform support — **select both macOS and iOS** and let it finish
+  downloading. If it asks you to agree to the license, accept it (or run
+  `sudo xcodebuild -license accept`).
 
-**1b. Homebrew** (a package manager that makes the next installs easy) — paste this into
-**Terminal** and follow the prompts:
+**1b. Homebrew** (a package manager that makes the next two installs easy)
+- *Already have it?* Run `brew --version`. If it prints a version, skip to **1c**.
+- Otherwise, paste this in and follow the prompts:
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 > When it asks for your password, type your **Mac login password** — the characters won't
 > show as you type (that's normal), just type it and press Return. Afterward it may print
-> two "Next steps" `echo`/`eval` commands to add Homebrew to your PATH — run those if shown.
+> two "Next steps" `echo`/`eval` commands to add Homebrew to your PATH — run those if shown,
+> then confirm with `brew --version`.
 
-**1c. Node.js** and **CocoaPods** (via Homebrew):
+**1c. Node.js and CocoaPods**
+- *Already have them?* Run `node -v` and `pod --version`. If both print versions, skip to Step 2.
+- Otherwise, install whichever is missing:
 ```bash
 brew install node
 brew install cocoapods
 ```
-Verify they're installed:
+Confirm all three tools are ready:
 ```bash
-node -v      # e.g. v24.x
-npm -v       # e.g. 11.x
-pod --version
+node -v          # e.g. v24.x
+npm -v           # e.g. 11.x   (comes with node)
+pod --version    # e.g. 1.17.x
 ```
 
 ### Step 2 — Get the code
-Clone this repository:
+Move into a folder you'll remember (your Desktop works), then clone the repo:
 ```bash
+cd ~/Desktop                                                # or any folder you like
 git clone https://github.com/AadityaG2011/namedeck.git
 cd namedeck
 ```
+**You should now be inside the project folder** (`~/Desktop/namedeck`). Every command from
+here runs from this folder.
 > **GitHub note:** if a later `git push` ever fails with *"Password authentication is not
 > supported"*, that's expected — GitHub no longer accepts your account password for git.
 > Run `gh auth login` (install with `brew install gh`) and log in through the browser, or
 > use a Personal Access Token as the password. Cloning a public repo doesn't need this.
 
-### Step 3 — Build the web bundle and sync it into the iOS project
+### Step 3 — Build the app and open it in Xcode
+From inside the `namedeck` folder:
 ```bash
 npm install          # installs the build/test tooling and Capacitor
 node build.js        # builds dist/ (the app the native shell loads)
@@ -120,10 +142,22 @@ npx cap open ios     # opens the project in Xcode
 > If `ios/` doesn't exist yet (fresh checkout without it), run `npx cap add ios` once
 > before `npx cap sync ios`.
 
-Xcode will open the project. If it shows **"Update to recommended settings,"** click it →
+**Xcode should now open with the project loaded** — you'll see a blue **"App"** project at
+the top of the left sidebar. If Xcode shows **"Update to recommended settings,"** click it →
 **Perform Changes** (it's safe — just modern defaults).
 
-### Step 4 — Sign the app in Xcode
+### Step 4 — Connect and prepare your iPhone
+Doing this *before* signing means Xcode can register your device and create the signing
+profile without errors.
+1. **Connect** the iPhone to the Mac with the cable. On the phone, tap **Trust** ("Trust
+   This Computer?") and enter your passcode.
+2. **Enable Developer Mode** (required on iOS 16 and later): on the iPhone go to
+   **Settings → Privacy & Security → Developer Mode** → turn it **On** → **Restart** when
+   asked. After the reboot, unlock the phone and tap **Turn On** at the prompt.
+   > If you don't see "Developer Mode" yet, it appears once the phone has been connected to
+   > Xcode — keep it plugged in and re-check.
+
+### Step 5 — Sign the app in Xcode
 In the left sidebar, click the top blue **"App"** item → select the **"App" target** →
 **Signing & Capabilities** tab:
 1. Check **Automatically manage signing**.
@@ -132,25 +166,28 @@ In the left sidebar, click the top blue **"App"** item → select the **"App" ta
 3. If it complains the **Bundle Identifier** is taken, change it to something unique to
    you, e.g. `com.yourname.namedeck`.
 
-When there are no red errors in this panel, signing is set.
+**When there are no red errors in this panel, signing is set.**
 
-### Step 5 — Prepare your iPhone
-1. **Connect** the iPhone to the Mac with the cable. On the phone, tap **Trust** ("Trust
-   This Computer?") and enter your passcode.
-2. **Enable Developer Mode** (required on iOS 16 and later): on the iPhone go to
-   **Settings → Privacy & Security → Developer Mode** → turn it **On** → **Restart** when
-   asked. After the reboot, unlock the phone and tap **Turn On** at the prompt.
-   > If you don't see "Developer Mode," it usually appears only after Xcode has tried to
-   > install to the phone once — keep it plugged in and it'll show up.
+> **If you see "No profiles for 'com.…' were found":** the bundle ID isn't unique, or no
+> device is registered yet. Make the **Bundle Identifier** unique (point 3 above) and make
+> sure your iPhone is connected (Step 4) — free provisioning creates the profile once a
+> device is attached.
+>
+> **If you see "Communication with Apple failed":** usually just a hiccup. Check your
+> internet, click **Try Again**, confirm your Apple ID is listed under **Xcode → Settings
+> (⌘,) → Accounts**, and if it persists, quit and reopen Xcode.
 
 ### Step 6 — Run it
-1. In Xcode's top toolbar **device dropdown**, select **your iPhone**.
+1. In Xcode's top toolbar **device dropdown**, select **your iPhone** (not a simulator).
 2. Click **▶ Run**.
 3. If macOS asks to use a keychain key (*"codesign wants to access… Apple Development…"*),
    enter your **Mac login password** and click **Always Allow**.
 4. First launch is blocked as an untrusted developer. On the phone: **Settings → General →
    VPN & Device Management** → tap your developer certificate → **Trust**. Then open the
    **NameDeck** icon on your home screen.
+
+> **If Run stops with "Developer Mode disabled":** you skipped enabling it — do **Step 4**,
+> then click **▶ Run** again.
 
 That's it — NameDeck is running natively on your iPhone. 🎉
 
@@ -166,8 +203,9 @@ the device dropdown and click **▶ Run**. Good for a quick look; use a real dev
 the actual feel and the photo picker.
 
 ### After you change the code
-The native app bundles a snapshot of `dist/`, so re-sync after edits:
+The native app bundles a snapshot of `dist/`, so refresh it after any edits:
 ```bash
+git pull          # only if the changes were made/pushed from elsewhere
 node build.js
 npx cap sync ios
 ```
@@ -175,38 +213,19 @@ Then **▶ Run** again in Xcode.
 
 ---
 
-## Troubleshooting
+## Quick error index
+Every fix is written inline at the step where the error shows up — this table is just a
+lookup so you can jump straight to it:
 
-**`git push` → "Password authentication is not supported"**
-GitHub doesn't accept your account password for git. Run `gh auth login`
-(`brew install gh`) and authenticate in the browser, or create a Personal Access Token
-(GitHub → Settings → Developer settings → Personal access tokens) and use *that* as the
-password.
-
-**"No profiles for 'com.…' were found"**
-The bundle ID isn't unique or no device is registered yet. Change the **Bundle Identifier**
-(Signing & Capabilities) to something like `com.yourname.namedeck`, and connect your iPhone
-— free provisioning creates the profile once a device is attached.
-
-**"Communication with Apple failed"**
-Usually transient. Check your internet, click **Try Again** in the signing panel, confirm
-your Apple ID is listed under **Xcode → Settings (⌘,) → Accounts**, and if it persists,
-quit and reopen Xcode.
-
-**"codesign wants to access key … in your keychain"**
-That's macOS asking to use your new signing certificate. Enter your **Mac login password**
-and click **Always Allow** (not just Allow) so it doesn't ask on every build.
-
-**"Developer Mode disabled"**
-Enable it on the phone: **Settings → Privacy & Security → Developer Mode → On → Restart**
-(see Step 5).
-
-**"Untrusted Developer" when the app launches**
-**Settings → General → VPN & Device Management** → tap your developer certificate →
-**Trust** (see Step 6).
-
-**The app opened before but now won't**
-The free-account 7-day signing likely expired — plug in and **▶ Run** again from Xcode.
+| Error / symptom | Where the fix is |
+| --- | --- |
+| `git push` → "Password authentication is not supported" | Step 2 note (use `gh auth login` or a token) |
+| "No profiles for 'com.…' were found" | Step 5 note (unique bundle ID + connect the phone) |
+| "Communication with Apple failed" | Step 5 note (retry / check Apple ID in Accounts) |
+| "codesign wants to access key … in your keychain" | Step 6, point 3 (Mac login password → Always Allow) |
+| "Developer Mode disabled" | Step 4 (enable it on the phone) |
+| "Untrusted Developer" when the app launches | Step 6, point 4 (Trust the cert on the phone) |
+| App opened before but now won't launch | The 7-day catch (re-Run from Xcode) |
 
 ---
 
