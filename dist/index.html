@@ -502,6 +502,45 @@ window.NameDeck = window.NameDeck || {};
     return out;
   }
 
+  // Sign in + pick the sheet & photos + read the responses, WITHOUT downloading the images.
+  // Resolves with { token, folderPicked, students:[{ preferredName, fileId }] }. The web flow
+  // downloads inline (see run); the native flow hands this back to the app (which downloads the
+  // images itself), because the sign-in + Picker must run in a real browser, not the webview.
+  function collect(onStatus) {
+    onStatus = onStatus || function () {};
+    if (!configured()) return Promise.reject(new Error('Google import is not configured'));
+    return ensureLibs().then(getToken).then(function (token) {
+      return pickSpreadsheet(token).then(function (sheet) {
+        if (!sheet) return { token: token, folderPicked: false, students: [] }; // cancelled
+        return pickPhotos(token).then(function (photoDocs) {
+          if (!photoDocs) return { token: token, folderPicked: false, students: [] }; // cancelled
+          var folderPicked = false, pickedIds = {};
+          photoDocs.forEach(function (d) {
+            if (d.mimeType === FOLDER_MIME) folderPicked = true;
+            else if (/^image\//.test(d.mimeType || '')) pickedIds[d.id] = true;
+          });
+          onStatus('Reading responses…');
+          return exportSheetCsv(sheet.id, token).then(function (csv) {
+            var pairs = pairsFromCsv(csv);
+            // If a folder was picked, try every response's photo (folder grant should allow it);
+            // otherwise only the photos that were individually selected.
+            var candidates = pairs.filter(function (p) { return folderPicked || pickedIds[p.fileId]; });
+            if (!candidates.length) {
+              throw new Error(folderPicked
+                ? 'No photos matched — is that the "(File responses)" folder for this form?'
+                : 'None of the selected photos matched the responses');
+            }
+            return {
+              token: token,
+              folderPicked: folderPicked,
+              students: candidates.map(function (p) { return { preferredName: p.name, fileId: p.fileId }; })
+            };
+          });
+        });
+      });
+    });
+  }
+
   NameDeck.googleImport = {
     configured: configured,
     // Warm up the Google libraries ahead of time (e.g. when the roster opens), so the first
@@ -510,49 +549,32 @@ window.NameDeck = window.NameDeck || {};
     preload: function () {
       if (configured()) ensureLibs().then(ensureTokenClient).catch(function () {});
     },
-    // Runs the whole flow; resolves with [{ preferredName, blob }] (blobs are the photo bytes).
+    // Sign in + pick + read (no download). Used by the native handoff page.
+    collect: collect,
+    // Download one photo by Drive file ID with a token from collect(). Used by the native app
+    // to finish the import after the handoff.
+    downloadPhoto: function (fileId, token) { return downloadFile(fileId, token); },
+    // Web flow: collect, then download the photos inline. Resolves with [{ preferredName, blob }].
     // onStatus(message) is called at each phase (for the in-app progress line).
     run: function (onStatus) {
       onStatus = onStatus || function () {};
-      if (!configured()) return Promise.reject(new Error('Google import is not configured'));
-      return ensureLibs().then(getToken).then(function (token) {
-        return pickSpreadsheet(token).then(function (sheet) {
-          if (!sheet) return []; // cancelled
-          return pickPhotos(token).then(function (photoDocs) {
-            if (!photoDocs) return []; // cancelled
-            var folderPicked = false, pickedIds = {};
-            photoDocs.forEach(function (d) {
-              if (d.mimeType === FOLDER_MIME) folderPicked = true;
-              else if (/^image\//.test(d.mimeType || '')) pickedIds[d.id] = true;
-            });
-            onStatus('Reading responses…');
-            return exportSheetCsv(sheet.id, token).then(function (csv) {
-              var pairs = pairsFromCsv(csv);
-              // If a folder was picked, try every response's photo (folder grant should allow it);
-              // otherwise only the photos that were individually selected.
-              var candidates = pairs.filter(function (p) { return folderPicked || pickedIds[p.fileId]; });
-              if (!candidates.length) {
-                throw new Error(folderPicked
-                  ? 'No photos matched — is that the "(File responses)" folder for this form?'
-                  : 'None of the selected photos matched the responses');
-              }
-              var total = candidates.length, done = 0;
-              var tick = function () { done++; onStatus('Downloading photos… (' + done + ' of ' + total + ')'); };
-              onStatus('Downloading photos… (0 of ' + total + ')');
-              return Promise.all(candidates.map(function (p) {
-                return downloadFile(p.fileId, token).then(
-                  function (blob) { tick(); return { preferredName: p.name, blob: blob }; },
-                  function () { tick(); return null; } // tolerate individual failures
-                );
-              })).then(function (results) {
-                var students = results.filter(Boolean);
-                if (!students.length && folderPicked) {
-                  throw new Error("Couldn't open the photos in that folder — try selecting the photos individually instead.");
-                }
-                return students;
-              });
-            });
-          });
+      return collect(onStatus).then(function (res) {
+        var candidates = res.students || [];
+        if (!candidates.length) return [];
+        var total = candidates.length, done = 0;
+        var tick = function () { done++; onStatus('Downloading photos… (' + done + ' of ' + total + ')'); };
+        onStatus('Downloading photos… (0 of ' + total + ')');
+        return Promise.all(candidates.map(function (p) {
+          return downloadFile(p.fileId, res.token).then(
+            function (blob) { tick(); return { preferredName: p.preferredName, blob: blob }; },
+            function () { tick(); return null; } // tolerate individual failures
+          );
+        })).then(function (results) {
+          var students = results.filter(Boolean);
+          if (!students.length && res.folderPicked) {
+            throw new Error("Couldn't open the photos in that folder — try selecting the photos individually instead.");
+          }
+          return students;
         });
       });
     }
@@ -933,6 +955,7 @@ window.NameDeck = window.NameDeck || {};
       setImportStatus("Google import isn't set up yet — add your credentials in google-import.js.", 'error');
       return;
     }
+    if (isNative()) { startNativeGoogleImport(); return; } // native: sign in via the real browser
     setImportStatus('Connecting to Google…', '');
     ND.googleImport.run(function (msg) { setImportStatus(msg, ''); }).then(function (students) {
       if (!students || !students.length) { setImportStatus('No students were imported.', ''); return; }
@@ -947,6 +970,71 @@ window.NameDeck = window.NameDeck || {};
     }).catch(function (err) {
       setImportStatus('Import failed: ' + (err && err.message ? err.message : err), 'error');
     });
+  }
+
+  // ---- Native "Import from Google" (Capacitor iOS) ----
+  // Google refuses to run its sign-in inside an app's webview, so the native flow opens the
+  // handoff page (native-import.html) in the real browser; that page signs in + picks + reads
+  // the sheet, then returns via a namedeck:// link carrying the token + {name, fileId} list.
+  // We finish here by downloading the photos with that token. See setupDeepLinks / finishNative.
+  var NATIVE_IMPORT_URL = 'https://namedeck.netlify.app/native-import.html';
+
+  function isNative() {
+    return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  }
+
+  function startNativeGoogleImport() {
+    setImportStatus('Opening Google sign-in in your browser…', '');
+    try {
+      window.Capacitor.Plugins.Browser.open({ url: NATIVE_IMPORT_URL });
+    } catch (e) {
+      setImportStatus('Could not open the browser for Google sign-in.', 'error');
+    }
+  }
+
+  // Register the namedeck:// deep-link listener that the handoff page returns to.
+  function setupDeepLinks() {
+    if (!isNative()) return;
+    var App = window.Capacitor.Plugins.App;
+    if (!App || !App.addListener) return;
+    App.addListener('appUrlOpen', function (data) {
+      var url = data && data.url;
+      if (!url || url.indexOf('namedeck://import') !== 0) return;
+      try { window.Capacitor.Plugins.Browser.close(); } catch (e) {} // dismiss the browser sheet
+      finishNativeGoogleImport(url);
+    });
+  }
+
+  function finishNativeGoogleImport(url) {
+    if (document.querySelector('#rosterSheet').hidden) openRoster(); // show the status + new rows
+    var frag = url.split('#')[1] || '';
+    var payload = null;
+    try { payload = JSON.parse(decodeURIComponent(frag)); } catch (e) { /* malformed */ }
+    if (!payload || !payload.students || !payload.students.length) {
+      setImportStatus('No students were imported.', '');
+      return;
+    }
+    var token = payload.token, students = payload.students;
+    var total = students.length, done = 0;
+    var progress = function () {
+      done++;
+      if (done >= total) {
+        save(); renderList();
+        setImportStatus('Imported ' + total + ' student' + (total === 1 ? '' : 's') + ' ✓', 'ok');
+      } else {
+        setImportStatus('Downloading photos… (' + done + ' of ' + total + ')', '');
+      }
+    };
+    students.forEach(function (s) {
+      var stud = { id: 'r' + (++seq), preferredName: s.preferredName, photo: null, avatarSeed: s.preferredName };
+      myRoster.push(stud);
+      ND.googleImport.downloadPhoto(s.fileId, token).then(function (blob) {
+        fileToPhoto(blob, function (dataUrl) { stud.photo = dataUrl; save(); renderList(); progress(); });
+      }, function () { progress(); }); // tolerate individual failures (keeps the avatar fallback)
+    });
+    save();
+    renderList();
+    setImportStatus('Downloading photos… (0 of ' + total + ')', '');
   }
 
   function clearRoster() {
@@ -1263,6 +1351,7 @@ window.NameDeck = window.NameDeck || {};
   }
 
   render();
+  setupDeepLinks(); // listen for the namedeck:// handoff (native only; no-op on the web)
 })();
   </script>
   <script>

@@ -62,9 +62,17 @@ const pwaAssets = [
   'apple-touch-icon.png',
 ];
 
+// The native app's "Import from Google" handoff page (opened in the real browser). It reuses
+// google-import.js, inlined here so the page is self-contained like the main app.
+const googleImportSrc = fs.readFileSync(path.join(root, 'src/ui/google-import.js'), 'utf8');
+const nativeImportHtml = fs.readFileSync(path.join(root, 'src/native-import.html'), 'utf8')
+  .replace('/*__GOOGLE_IMPORT__*/', function () { return googleImportSrc; }); // fn replacer: no $ escaping
+
 fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(root, 'dist/index.html'), html);
+fs.writeFileSync(path.join(root, 'dist/native-import.html'), nativeImportHtml);
+fs.copyFileSync(path.join(root, 'src/privacy.html'), path.join(root, 'dist/privacy.html')); // for Google/App Store
 pwaAssets.forEach(function (f) {
   fs.copyFileSync(path.join(root, 'src/pwa', f), path.join(root, 'dist', f));
 });
-console.log('Built dist/index.html (' + Math.round(html.length / 1024) + ' KB) + PWA assets: ' + pwaAssets.join(', '));
+console.log('Built dist/index.html (' + Math.round(html.length / 1024) + ' KB) + native-import.html + privacy.html + PWA assets: ' + pwaAssets.join(', '));

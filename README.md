@@ -27,8 +27,8 @@ removes it for good (it's never re-added). Teachers then build their own roster 
 - **Paste or type names** (one per line), and/or
 - **Import Photos** / **Import Folder** — one student per photo, with the file name used
   as the name (edit any afterward), and/or
-- **Import from Google** — pull names + photos collected through a Google Form (works in
-  the web build; the native-app version is in progress — see [Google import](#google-import)).
+- **Import from Google** — pull names + photos collected through a Google Form (works in both
+  the web build and the native iOS app — see [Google import](#google-import)).
 
 Photos are downscaled and saved **on the device** (localStorage). A student with no photo
 yet shows a generated avatar, so a roster can be built names-first and photographed later.
@@ -234,11 +234,14 @@ The **Import from Google** button lets a teacher collect student names + photos 
 Google Form and pull them straight into the roster, matched automatically — no renaming
 files or matching names to faces by hand.
 
-- In the **web build** it's fully working (it uses Google Sign-In + the Google Picker with
-  the narrow `drive.file` permission — per-file access only).
-- In the **native iOS app** it's **in progress** — Google deliberately blocks its sign-in
-  inside an app's embedded webview, so the native version routes sign-in through the real
-  browser and hands the result back to the app.
+- In the **web build** it uses Google Sign-In + the Google Picker with the narrow `drive.file`
+  permission (per-file access only), all in-page.
+- In the **native iOS app**, because Google blocks its sign-in inside app webviews, the app
+  opens a small NameDeck page (`native-import.html`) in the **real browser**; that page signs
+  in + picks + reads the responses, then returns to the app via a `namedeck://` link carrying
+  the token + `{name, fileId}` list, and the app downloads the photos. Needs the
+  `@capacitor/app` + `@capacitor/browser` plugins (`npm install` + `npx cap sync ios`) and the
+  `namedeck` URL scheme (already in `ios/App/App/Info.plist`).
 
 ### Set up the Google Form (one time)
 

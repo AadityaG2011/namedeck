@@ -370,6 +370,7 @@
       setImportStatus("Google import isn't set up yet — add your credentials in google-import.js.", 'error');
       return;
     }
+    if (isNative()) { startNativeGoogleImport(); return; } // native: sign in via the real browser
     setImportStatus('Connecting to Google…', '');
     ND.googleImport.run(function (msg) { setImportStatus(msg, ''); }).then(function (students) {
       if (!students || !students.length) { setImportStatus('No students were imported.', ''); return; }
@@ -384,6 +385,71 @@
     }).catch(function (err) {
       setImportStatus('Import failed: ' + (err && err.message ? err.message : err), 'error');
     });
+  }
+
+  // ---- Native "Import from Google" (Capacitor iOS) ----
+  // Google refuses to run its sign-in inside an app's webview, so the native flow opens the
+  // handoff page (native-import.html) in the real browser; that page signs in + picks + reads
+  // the sheet, then returns via a namedeck:// link carrying the token + {name, fileId} list.
+  // We finish here by downloading the photos with that token. See setupDeepLinks / finishNative.
+  var NATIVE_IMPORT_URL = 'https://namedeck.netlify.app/native-import.html';
+
+  function isNative() {
+    return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  }
+
+  function startNativeGoogleImport() {
+    setImportStatus('Opening Google sign-in in your browser…', '');
+    try {
+      window.Capacitor.Plugins.Browser.open({ url: NATIVE_IMPORT_URL });
+    } catch (e) {
+      setImportStatus('Could not open the browser for Google sign-in.', 'error');
+    }
+  }
+
+  // Register the namedeck:// deep-link listener that the handoff page returns to.
+  function setupDeepLinks() {
+    if (!isNative()) return;
+    var App = window.Capacitor.Plugins.App;
+    if (!App || !App.addListener) return;
+    App.addListener('appUrlOpen', function (data) {
+      var url = data && data.url;
+      if (!url || url.indexOf('namedeck://import') !== 0) return;
+      try { window.Capacitor.Plugins.Browser.close(); } catch (e) {} // dismiss the browser sheet
+      finishNativeGoogleImport(url);
+    });
+  }
+
+  function finishNativeGoogleImport(url) {
+    if (document.querySelector('#rosterSheet').hidden) openRoster(); // show the status + new rows
+    var frag = url.split('#')[1] || '';
+    var payload = null;
+    try { payload = JSON.parse(decodeURIComponent(frag)); } catch (e) { /* malformed */ }
+    if (!payload || !payload.students || !payload.students.length) {
+      setImportStatus('No students were imported.', '');
+      return;
+    }
+    var token = payload.token, students = payload.students;
+    var total = students.length, done = 0;
+    var progress = function () {
+      done++;
+      if (done >= total) {
+        save(); renderList();
+        setImportStatus('Imported ' + total + ' student' + (total === 1 ? '' : 's') + ' ✓', 'ok');
+      } else {
+        setImportStatus('Downloading photos… (' + done + ' of ' + total + ')', '');
+      }
+    };
+    students.forEach(function (s) {
+      var stud = { id: 'r' + (++seq), preferredName: s.preferredName, photo: null, avatarSeed: s.preferredName };
+      myRoster.push(stud);
+      ND.googleImport.downloadPhoto(s.fileId, token).then(function (blob) {
+        fileToPhoto(blob, function (dataUrl) { stud.photo = dataUrl; save(); renderList(); progress(); });
+      }, function () { progress(); }); // tolerate individual failures (keeps the avatar fallback)
+    });
+    save();
+    renderList();
+    setImportStatus('Downloading photos… (0 of ' + total + ')', '');
   }
 
   function clearRoster() {
@@ -700,4 +766,5 @@
   }
 
   render();
+  setupDeepLinks(); // listen for the namedeck:// handoff (native only; no-op on the web)
 })();

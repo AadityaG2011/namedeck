@@ -1,3 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>NameDeck — Google Import</title>
+<!--
+  native-import.html — the handoff page for the native app's "Import from Google".
+  Google won't run its sign-in inside an app webview, so the app opens THIS page in the real
+  browser. It signs in + picks the sheet/photos + reads the responses (reusing google-import.js),
+  then returns to the app via a namedeck:// link carrying the token + {name, fileId} list. The
+  app downloads the photos itself. This page is only used by the native app; the web build does
+  the whole thing in-page. Built to dist/native-import.html by build.js (google-import.js inlined).
+-->
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #f4f6fb; color: #1a2233; padding: 24px; }
+  .box { width: 100%; max-width: 340px; text-align: center; }
+  h1 { font-size: 20px; margin: 0 0 8px; }
+  p { font-size: 14px; color: #5a6478; line-height: 1.5; margin: 0 0 20px; }
+  button { border: none; border-radius: 12px; padding: 13px 18px; font: inherit; font-weight: 600;
+    background: #1a2233; color: #fff; cursor: pointer; width: 100%; }
+  button:disabled { opacity: .5; }
+  .status { margin-top: 16px; font-size: 13px; color: #5a6478; min-height: 18px; line-height: 1.4; }
+  .status.error { color: #9a3412; }
+</style>
+</head>
+<body>
+  <div class="box">
+    <h1>Import from Google</h1>
+    <p>Sign in, then pick your responses spreadsheet and your photos. You’ll return to NameDeck automatically.</p>
+    <button id="go">Continue with Google</button>
+    <div class="status" id="status"></div>
+  </div>
+  <script>
 // google-import.js — optional "Import from Google" using Google Sign-In + the Picker with
 // the narrow `drive.file` scope (per-file access only; no full-Drive access, no security audit).
 //
@@ -232,3 +270,32 @@ window.NameDeck = window.NameDeck || {};
     }
   };
 })();
+
+  </script>
+  <script>
+  (function () {
+    var statusEl = document.getElementById('status');
+    var btn = document.getElementById('go');
+    function setStatus(m, err) { statusEl.textContent = m || ''; statusEl.className = 'status' + (err ? ' error' : ''); }
+    var gi = window.NameDeck && window.NameDeck.googleImport;
+    if (!gi || !gi.configured()) { btn.disabled = true; setStatus('Google import is not configured.', true); return; }
+    // Warm up the Google libraries so the first tap opens sign-in within the user's gesture.
+    if (gi.preload) gi.preload();
+    btn.addEventListener('click', function () {
+      btn.disabled = true;
+      setStatus('Connecting to Google…');
+      gi.collect(setStatus).then(function (res) {
+        if (!res || !res.students || !res.students.length) { btn.disabled = false; setStatus('No photos were selected.'); return; }
+        setStatus('Returning to NameDeck…');
+        var payload = { token: res.token, students: res.students };
+        // Hand the result back to the app; the token lives in the fragment (never sent to a server).
+        window.location.href = 'namedeck://import#' + encodeURIComponent(JSON.stringify(payload));
+      }).catch(function (err) {
+        btn.disabled = false;
+        setStatus('Import failed: ' + (err && err.message ? err.message : err), true);
+      });
+    });
+  })();
+  </script>
+</body>
+</html>
