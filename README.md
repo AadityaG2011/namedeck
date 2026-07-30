@@ -51,17 +51,19 @@ mobile. That's the whole app.
 Installing the web app to your home screen gives it an **app icon**, a **full-screen** view
 (no browser bar), and **offline** support — no App Store required.
 
-**iPhone / iPad (Safari):**
+**On your iPhone / iPad (Safari):**
 1. Open **[namedeck.netlify.app](https://namedeck.netlify.app)** in **Safari**.
-2. Tap the **Share** button (the square with an up-arrow).
-3. Scroll down → **Add to Home Screen** → **Add**.
-4. Launch **NameDeck** from your home screen.
+2. Tap the **•••** (More) button in the **bottom-right** corner of Safari.
+3. Tap **Share** (the square with an up-arrow). *(On some iOS versions the Share icon sits in
+   the toolbar directly — tap that instead.)*
+4. Scroll down → **Add to Home Screen** → **Add**.
+5. Launch **NameDeck** from your home screen.
 
-**Android (Chrome):**
+**On your Android phone (Chrome):**
 1. Open **[namedeck.netlify.app](https://namedeck.netlify.app)** in **Chrome**.
 2. Tap the **⋮** menu → **Install app** (or **Add to Home screen**) → **Install**.
 
-**Desktop (Chrome / Edge):** click the **install icon** in the address bar (or **⋮ menu →
+**On a desktop (Chrome / Edge):** click the **install icon** in the address bar (or **⋮ menu →
 Install NameDeck**).
 
 ### 3. As a native iOS app
@@ -168,6 +170,10 @@ running on your own iPhone. Budget ~30–45 minutes the first time.
 > **Why a Mac?** Building an iOS app requires **Xcode**, which only runs on macOS. There's no way
 > around this — you need access to a Mac.
 
+**Each step below is tagged with where you do it — 💻 *on the Mac* or 📱 *on the iPhone*.** Most
+of the work is on the Mac; the phone is only involved in Steps 4 and part of 6. The Mac and the
+iPhone are connected by the cable throughout.
+
 ### What you need first
 - A **Mac** (macOS recent enough for the current Xcode) with **~15 GB free disk** (Xcode is big).
 - An **iPhone** and a cable to connect it to the Mac:
@@ -179,7 +185,7 @@ running on your own iPhone. Budget ~30–45 minutes the first time.
 Every command below goes in the **Terminal** app (press ⌘-Space, type "Terminal", Enter). Each of
 the four tools has a quick "already have it?" check so you can skip what's installed.
 
-### Step 1 — Install the tools (on the Mac)
+### Step 1 — Install the tools 💻 on the Mac
 
 **1a. Xcode**
 - *Already have it?* Run `xcodebuild -version`. If it prints a version (e.g. `Xcode 16.x`), skip
@@ -215,7 +221,7 @@ npm -v           # e.g. 11.x   (comes with node)
 pod --version    # e.g. 1.17.x
 ```
 
-### Step 2 — Get the code
+### Step 2 — Get the code 💻 on the Mac
 Move into a folder you'll remember (your Desktop works), then clone the repo:
 ```bash
 cd ~/Desktop                                                # or any folder you like
@@ -229,7 +235,7 @@ runs from this folder.
 > `gh auth login` (install with `brew install gh`) and log in through the browser, or use a
 > Personal Access Token as the password. Cloning a public repo doesn't need this.
 
-### Step 3 — Build the app and open it in Xcode
+### Step 3 — Build the app and open it in Xcode 💻 on the Mac
 From inside the `namedeck` folder:
 ```bash
 npm install          # installs the build/test tooling and Capacitor
@@ -244,7 +250,7 @@ npx cap open ios     # opens the project in Xcode
 of the left sidebar. If Xcode shows **"Update to recommended settings,"** click it → **Perform
 Changes** (it's safe — just modern defaults).
 
-### Step 4 — Connect and prepare your iPhone
+### Step 4 — Connect and prepare your iPhone 📱 on the iPhone (plugged into the Mac)
 Doing this *before* signing means Xcode can register your device and create the signing profile
 without errors.
 1. **Connect** the iPhone to the Mac with the cable. On the phone, tap **Trust** ("Trust This
@@ -255,7 +261,7 @@ without errors.
    > If you don't see "Developer Mode" yet, it appears once the phone has been connected to Xcode
    > — keep it plugged in and re-check.
 
-### Step 5 — Sign the app in Xcode
+### Step 5 — Sign the app in Xcode 💻 on the Mac
 In the left sidebar, click the top blue **"App"** item → select the **"App" target** → **Signing
 & Capabilities** tab:
 1. Check **Automatically manage signing**.
@@ -274,14 +280,17 @@ In the left sidebar, click the top blue **"App"** item → select the **"App" ta
 > click **Try Again**, confirm your Apple ID is listed under **Xcode → Settings (⌘,) → Accounts**,
 > and if it persists, quit and reopen Xcode.
 
-### Step 6 — Run it
+### Step 6 — Run it 💻 on the Mac, then 📱 on the iPhone
+**On the Mac (in Xcode):**
 1. In Xcode's top toolbar **device dropdown**, select **your iPhone** (not a simulator).
 2. Click **▶ Run**.
 3. If macOS asks to use a keychain key (*"codesign wants to access… Apple Development…"*), enter
    your **Mac login password** and click **Always Allow**.
-4. First launch is blocked as an untrusted developer. On the phone: **Settings → General → VPN &
-   Device Management** → tap your developer certificate → **Trust**. Then open the **NameDeck**
-   icon on your home screen.
+
+**On the iPhone:**
+4. First launch is blocked as an untrusted developer. Go to **Settings → General → VPN & Device
+   Management** → tap your developer certificate → **Trust**. Then open the **NameDeck** icon on
+   your home screen.
 
 > **If Run stops with "Developer Mode disabled":** you skipped enabling it — do **Step 4**, then
 > click **▶ Run** again.
@@ -290,15 +299,15 @@ That's it — NameDeck is running natively on your iPhone. 🎉
 
 ### The 7-day catch (free Apple ID)
 Because you signed with a **free** Apple ID, the installed app **stops opening after ~7 days**. To
-refresh it, just plug the phone back in and **▶ Run** again from Xcode. A paid **Apple Developer
-account ($99/yr)** removes this limit and unlocks TestFlight and the App Store.
+refresh it, just plug the phone back into the Mac and **▶ Run** again from Xcode. A paid **Apple
+Developer account ($99/yr)** removes this limit and unlocks TestFlight and the App Store.
 
-### Faster check: the Simulator (no signing, no phone)
+### Faster check: the Simulator 💻 on the Mac (no signing, no phone)
 To just see the app without any signing setup, pick a simulator (e.g. **iPhone 15**) in the device
 dropdown and click **▶ Run**. Good for a quick look; use a real device to test the actual feel and
 the photo picker.
 
-### After you change the code
+### After you change the code 💻 on the Mac
 The native app bundles a snapshot of `dist/`, so refresh it after any edits:
 ```bash
 git pull          # only if the changes were made/pushed from elsewhere
