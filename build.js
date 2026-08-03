@@ -24,7 +24,6 @@ const html = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-<meta name="google-site-verification" content="VrG7WY-C8P-ZfjlnlfGBVncCEOVOyCif8xQXZo59_7c" />
 <meta name="google-site-verification" content="w73JoQh2tjo7AG4KXHLJuxpnewHQdGF-bsz5-0VEhQI" />
 <title>NameDeck</title>
 <meta name="theme-color" content="#0f1420" />

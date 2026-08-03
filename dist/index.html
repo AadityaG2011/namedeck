@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-<meta name="google-site-verification" content="VrG7WY-C8P-ZfjlnlfGBVncCEOVOyCif8xQXZo59_7c" />
 <meta name="google-site-verification" content="w73JoQh2tjo7AG4KXHLJuxpnewHQdGF-bsz5-0VEhQI" />
 <title>NameDeck</title>
 <meta name="theme-color" content="#0f1420" />
@@ -412,7 +411,10 @@ window.NameDeck = window.NameDeck || {};
     }
   }
 
-  // Get an OAuth access token for the drive.file scope (prompts the teacher to sign in/consent).
+  // Get an OAuth access token for the drive.file scope. We pass prompt:'' (not 'consent'), so a
+  // teacher who has already consented isn't forced through the consent screen again — Google
+  // still shows it automatically on the first-ever grant, but returning users go straight through.
+  // This matters most in the native app, where each import opens a fresh sign-in page.
   function getToken() {
     return new Promise(function (resolve, reject) {
       ensureTokenClient();
@@ -420,7 +422,7 @@ window.NameDeck = window.NameDeck || {};
         if (resp && resp.access_token) { accessToken = resp.access_token; resolve(accessToken); }
         else reject(new Error('Sign-in was cancelled'));
       };
-      tokenClient.requestAccessToken({ prompt: accessToken ? '' : 'consent' });
+      tokenClient.requestAccessToken({ prompt: '' });
     });
   }
 

@@ -347,6 +347,11 @@ Or just open `dist/index.html` directly in a browser.
 node build.js   # bundles src/ into dist/ (index.html + native-import.html + privacy.html + PWA assets)
 ```
 
+### Deployment
+The production site is hosted on **Cloudflare Pages**, which auto-builds from the `main` branch
+(build command `node build.js`, output directory `dist`) and publishes to
+[namedeck.pages.dev](https://namedeck.pages.dev) on every push.
+
 ### Project structure
 ```
 src/
@@ -375,5 +380,8 @@ npm test   # headless jsdom smoke test of the full flow
 ---
 
 ## Roadmap
-Validate the feel (web + PWA + Capacitor iOS) → publish the Google app so any teacher can import →
-native **SwiftUI** iOS app (local-first) → then layer the quiz / spaced-repetition features back on.
+**Done:** web + PWA + Capacitor iOS all live (hosted on Cloudflare Pages); Google import published
+to production, so any teacher can use it — no test-user list.
+
+**Next:** optional **App Store** release (needs a paid Apple Developer account) → native **SwiftUI**
+rebuild (local-first) → then layer the quiz / spaced-repetition features back on.
