@@ -8,7 +8,7 @@ delay (default **1s**). Tap the card to reveal the name early; tap again to skip
 **Settings** panel adjusts both delays. That's the whole app, on purpose — quiz modes, spaced
 repetition, and typed answers are intentionally out of scope for now.
 
-**Live app:** [aadityag2011.github.io/namedeck](https://aadityag2011.github.io/namedeck)
+**Live app:** [namedeck.pages.dev](https://namedeck.pages.dev)
 
 ---
 
@@ -44,7 +44,7 @@ Your roster is stored **on each device**, so it doesn't automatically move betwe
 ## Get the app
 
 ### 1. On the web (nothing to install)
-Open **[aadityag2011.github.io/namedeck](https://aadityag2011.github.io/namedeck)** in any browser — desktop or
+Open **[namedeck.pages.dev](https://namedeck.pages.dev)** in any browser — desktop or
 mobile. That's the whole app.
 
 ### 2. As a PWA on your phone
@@ -52,7 +52,7 @@ Installing the web app to your home screen gives it an **app icon**, a **full-sc
 (no browser bar), and **offline** support — no App Store required.
 
 **On your iPhone / iPad (Safari):**
-1. Open **[aadityag2011.github.io/namedeck](https://aadityag2011.github.io/namedeck)** in **Safari**.
+1. Open **[namedeck.pages.dev](https://namedeck.pages.dev)** in **Safari**.
 2. Tap the **•••** (More) button in the **bottom-right** corner of Safari.
 3. Tap **Share** (the square with an up-arrow). *(On some iOS versions the Share icon sits in
    the toolbar directly — tap that instead.)*
@@ -60,7 +60,7 @@ Installing the web app to your home screen gives it an **app icon**, a **full-sc
 5. Launch **NameDeck** from your home screen.
 
 **On your Android phone (Chrome):**
-1. Open **[aadityag2011.github.io/namedeck](https://aadityag2011.github.io/namedeck)** in **Chrome**.
+1. Open **[namedeck.pages.dev](https://namedeck.pages.dev)** in **Chrome**.
 2. Tap the **⋮** menu → **Install app** (or **Add to Home screen**) → **Install**.
 
 **On a desktop (Chrome / Edge):** click the **install icon** in the address bar (or **⋮ menu →
@@ -157,7 +157,7 @@ this project's web origins and won't work for you. Create your own **Google Clou
 - **Optional Google sign-in** (for Import from Google) uses the narrow `drive.file` permission —
   access only to the spreadsheet and photos you pick.
 
-Full policy: **[aadityag2011.github.io/namedeck/privacy.html](https://aadityag2011.github.io/namedeck/privacy.html)**
+Full policy: **[namedeck.pages.dev/privacy.html](https://namedeck.pages.dev/privacy.html)**
 (also linked from the app's **Settings**).
 
 ---
