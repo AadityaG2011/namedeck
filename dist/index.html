@@ -411,10 +411,12 @@ window.NameDeck = window.NameDeck || {};
     }
   }
 
-  // Get an OAuth access token for the drive.file scope. We pass prompt:'' (not 'consent'), so a
-  // teacher who has already consented isn't forced through the consent screen again — Google
-  // still shows it automatically on the first-ever grant, but returning users go straight through.
-  // This matters most in the native app, where each import opens a fresh sign-in page.
+  // Get an OAuth access token for the drive.file scope: consent on the first sign-in of a page
+  // session, then reuse it silently. NOTE: passing prompt:'' to skip that consent seemed smoother,
+  // but it BROKE the Google Picker in Safari / installed PWAs — the silent flow never establishes
+  // the first-party Google session the Picker needs, so it failed with "Can't access your Google
+  // Account." The visible consent navigation primes that session, so we keep it (worth a repeat
+  // sign-in in the native app to keep the Picker working everywhere).
   function getToken() {
     return new Promise(function (resolve, reject) {
       ensureTokenClient();
@@ -422,7 +424,7 @@ window.NameDeck = window.NameDeck || {};
         if (resp && resp.access_token) { accessToken = resp.access_token; resolve(accessToken); }
         else reject(new Error('Sign-in was cancelled'));
       };
-      tokenClient.requestAccessToken({ prompt: '' });
+      tokenClient.requestAccessToken({ prompt: accessToken ? '' : 'consent' });
     });
   }
 
@@ -551,11 +553,17 @@ window.NameDeck = window.NameDeck || {};
     return Promise.all(folderIds.map(function (id) { return listImagesInFolder(id, token, 0); }))
       .then(function (maps) { var all = {}; maps.forEach(function (m) { for (var k in m) all[k] = true; }); return all; });
   }
-  // A short, human-readable preview of the names about to import (for the confirmation line).
+  // A short, human-readable preview of the names about to import (for the status line).
   function previewNames(pairs) {
     var names = pairs.map(function (p) { return p.name; });
     if (names.length <= 4) return names.join(', ');
     return names.slice(0, 3).join(', ') + ', and ' + (names.length - 3) + ' more';
+  }
+  // A fuller (one-per-line) list for the confirmation dialog, capped so it isn't enormous.
+  function namesForConfirm(pairs) {
+    var names = pairs.map(function (p) { return p.name; });
+    if (names.length <= 20) return names.join('\n');
+    return names.slice(0, 20).join('\n') + '\n… and ' + (names.length - 20) + ' more';
   }
 
   // Sign in + pick the sheet, read it (so we can show which students will import), then pick the
@@ -574,9 +582,15 @@ window.NameDeck = window.NameDeck || {};
           if (!pairs.length) {
             throw new Error('No students with photos were found in that spreadsheet — make sure you picked the form’s responses sheet.');
           }
-          // Confirmation: show which class/names are about to import BEFORE choosing photos.
-          onStatus('Importing ' + pairs.length + ' student' + (pairs.length === 1 ? '' : 's') +
-            ' (' + previewNames(pairs) + '). Now choose the photos folder…');
+          // Confirmation: show which class/names are about to import BEFORE choosing photos, so a
+          // teacher with several classes can back out if they picked the wrong spreadsheet. The
+          // photo picker opens right after, so a dialog (not just a status line) is what's visible.
+          onStatus('Found ' + pairs.length + ' student' + (pairs.length === 1 ? '' : 's') + ': ' + previewNames(pairs));
+          if (typeof confirm === 'function' &&
+              !confirm('Import these ' + pairs.length + ' student' + (pairs.length === 1 ? '' : 's') + '?\n\n' +
+                       namesForConfirm(pairs) + '\n\nClick OK, then choose the photos folder.')) {
+            return { token: token, folderPicked: false, students: [] }; // teacher backed out
+          }
           return pickPhotos(token).then(function (photoDocs) {
             if (!photoDocs) return { token: token, folderPicked: false, students: [] }; // cancelled
             var folderIds = [], pickedIds = {};
