@@ -137,11 +137,19 @@ them exactly** (including capitalization):
 1. In the app, open **My Roster → Import from Google**. (On the native app this opens Safari; on
    web/PWA it happens in-page.)
 2. **Sign in** with the Google account that **owns** the form (and its Drive folder).
-3. **Step 1** — select your **responses spreadsheet**.
-4. **Step 2** — select the **"(File responses)" folder** (one tap grabs every photo), or pick the
-   photos individually.
-5. NameDeck reads the sheet, matches each name to its photo, downloads them, and adds the students
-   — with a progress line as it goes.
+3. **Step 1** — select your **responses spreadsheet**. NameDeck then shows **which students it
+   found** (e.g. "Importing 24 students: John Smith, …") so you can confirm you picked the right
+   class before continuing.
+4. **Step 2** — pick a **"(File responses)" folder**. There are usually **two, and either one works**:
+   the one named after your **form** (e.g. "NameDeck information (File responses)") or the one named
+   after your **photo question** ("Your Photo (File responses)") nested inside it — NameDeck searches
+   subfolders automatically, so don't worry about which you choose. One tap grabs every photo.
+   - *Prefer to pick photos individually?* On a **computer**, open the folder and **Ctrl-click
+     (Windows) / ⌘-click (Mac)** to select several. On a **phone**, **tap each photo** so a checkmark
+     appears, then tap **Select**. (Picking the folder is far easier, though.)
+   - *List vs. grid view in the picker doesn't matter* — use whichever's easier to navigate.
+5. NameDeck matches each name to its photo, downloads them, and adds the students — with a progress
+   line as it goes.
 
 ### Building your own copy (credentials)
 If you're building your **own** copy of NameDeck, the committed Google credentials are locked to

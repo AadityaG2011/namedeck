@@ -138,7 +138,7 @@
                 '<input type="file" id="folderImport" accept="image/*" webkitdirectory multiple hidden /></label>' +
             '</div>' +
             '<button class="btn" id="importGoogle">Import from Google</button>' +
-            '<p class="import-hint">You’ll pick your responses spreadsheet, then your photos folder.</p>' +
+            '<p class="import-hint">Pick your responses spreadsheet, then any “(File responses)” folder — the one named after your form or your photo question both work.</p>' +
             '<p class="import-status" id="importStatus" hidden></p>' +
             '<p class="notice" id="storageNotice" hidden>Storage is full — new photos show now but may not be saved. Remove some students or use fewer/smaller photos.</p>' +
             '<div class="roster-list" id="rosterList"></div>' +
@@ -444,22 +444,27 @@
       return;
     }
     var token = payload.token, students = payload.students;
-    var total = students.length, done = 0;
+    var total = students.length, done = 0, ok = 0, firstError = null;
     var progress = function () {
       done++;
-      if (done >= total) {
-        save(); renderList();
-        setImportStatus('Imported ' + total + ' student' + (total === 1 ? '' : 's') + ' ✓', 'ok');
+      if (done < total) { setImportStatus('Downloading photos… (' + done + ' of ' + total + ')', ''); return; }
+      save(); renderList();
+      if (ok === 0) {
+        // Nothing downloaded — surface the real reason instead of silently showing avatars.
+        setImportStatus('Found ' + total + ' student' + (total === 1 ? '' : 's') +
+          ' but couldn’t download any photos. ' +
+          (firstError || 'The photos may not be accessible — pick a "(File responses)" folder.'), 'error');
       } else {
-        setImportStatus('Downloading photos… (' + done + ' of ' + total + ')', '');
+        setImportStatus('Imported ' + ok + ' of ' + total + ' student' + (total === 1 ? '' : 's') +
+          (ok < total ? ' (some photos couldn’t be downloaded)' : '') + ' ✓', ok < total ? '' : 'ok');
       }
     };
     students.forEach(function (s) {
       var stud = { id: 'r' + (++seq), preferredName: s.preferredName, photo: null, avatarSeed: s.preferredName };
       myRoster.push(stud);
       ND.googleImport.downloadPhoto(s.fileId, token).then(function (blob) {
-        fileToPhoto(blob, function (dataUrl) { stud.photo = dataUrl; save(); renderList(); progress(); });
-      }, function () { progress(); }); // tolerate individual failures (keeps the avatar fallback)
+        fileToPhoto(blob, function (dataUrl) { stud.photo = dataUrl; ok++; save(); renderList(); progress(); });
+      }, function (err) { if (!firstError) firstError = (err && err.message) ? err.message : String(err); progress(); });
     });
     save();
     renderList();
