@@ -254,7 +254,7 @@ window.NameDeck = window.NameDeck || {};
       onStatus = onStatus || function () {};
       return collect(onStatus).then(function (res) {
         var candidates = res.students || [];
-        if (!candidates.length) return [];
+        if (!candidates.length) return { students: [], failed: 0, firstError: null };
         var total = candidates.length, done = 0, firstError = null;
         var tick = function () { done++; onStatus('Downloading photos… (' + done + ' of ' + total + ')'); };
         onStatus('Downloading photos… (0 of ' + total + ')');
@@ -265,14 +265,13 @@ window.NameDeck = window.NameDeck || {};
           );
         })).then(function (results) {
           var students = results.filter(Boolean);
-          // If nothing downloaded, surface the real reason (HTTP status) instead of a vague message.
-          if (!students.length) {
-            throw new Error('Found ' + total + ' student' + (total === 1 ? '' : 's') +
-              ' but couldn’t download any photos. ' +
-              (firstError && firstError.message ? firstError.message
-                : 'The photos may not be accessible — pick a "(File responses)" folder, or select the photos directly.'));
-          }
-          return students;
+          // Return diagnostics too, so partial failures (some downloaded, some didn't) still surface
+          // the real HTTP error instead of hiding it behind a "success" message.
+          return {
+            students: students,
+            failed: total - students.length,
+            firstError: firstError && firstError.message ? firstError.message : null
+          };
         });
       });
     }

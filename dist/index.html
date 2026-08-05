@@ -609,7 +609,7 @@ window.NameDeck = window.NameDeck || {};
       onStatus = onStatus || function () {};
       return collect(onStatus).then(function (res) {
         var candidates = res.students || [];
-        if (!candidates.length) return [];
+        if (!candidates.length) return { students: [], failed: 0, firstError: null };
         var total = candidates.length, done = 0, firstError = null;
         var tick = function () { done++; onStatus('Downloading photos… (' + done + ' of ' + total + ')'); };
         onStatus('Downloading photos… (0 of ' + total + ')');
@@ -620,14 +620,13 @@ window.NameDeck = window.NameDeck || {};
           );
         })).then(function (results) {
           var students = results.filter(Boolean);
-          // If nothing downloaded, surface the real reason (HTTP status) instead of a vague message.
-          if (!students.length) {
-            throw new Error('Found ' + total + ' student' + (total === 1 ? '' : 's') +
-              ' but couldn’t download any photos. ' +
-              (firstError && firstError.message ? firstError.message
-                : 'The photos may not be accessible — pick a "(File responses)" folder, or select the photos directly.'));
-          }
-          return students;
+          // Return diagnostics too, so partial failures (some downloaded, some didn't) still surface
+          // the real HTTP error instead of hiding it behind a "success" message.
+          return {
+            students: students,
+            failed: total - students.length,
+            firstError: firstError && firstError.message ? firstError.message : null
+          };
         });
       });
     }
@@ -1020,8 +1019,9 @@ window.NameDeck = window.NameDeck || {};
     }
     if (isNative()) { startNativeGoogleImport(); return; } // native: sign in via the real browser
     setImportStatus('Connecting to Google…', '');
-    ND.googleImport.run(function (msg) { setImportStatus(msg, ''); }).then(function (students) {
-      if (!students || !students.length) { setImportStatus('No students were imported.', ''); return; }
+    ND.googleImport.run(function (msg) { setImportStatus(msg, ''); }).then(function (result) {
+      var students = (result && result.students) || [];
+      var failed = (result && result.failed) || 0;
       students.forEach(function (s) {
         var stud = { id: 'r' + (++seq), preferredName: s.preferredName, photo: null, avatarSeed: s.preferredName };
         myRoster.push(stud);
@@ -1029,7 +1029,15 @@ window.NameDeck = window.NameDeck || {};
       });
       save();
       renderList();
-      setImportStatus('Imported ' + students.length + ' student' + (students.length === 1 ? '' : 's') + ' ✓', 'ok');
+      if (!students.length) {
+        setImportStatus('No photos could be imported' + (failed ? ' (' + failed + ' failed)' : '') + '. ' +
+          (result && result.firstError ? result.firstError : ''), 'error');
+      } else if (failed) {
+        setImportStatus('Imported ' + students.length + ' of ' + (students.length + failed) + '. ' + failed +
+          ' photo' + (failed === 1 ? '' : 's') + ' failed — ' + (result.firstError || 'not accessible') + '.', 'error');
+      } else {
+        setImportStatus('Imported ' + students.length + ' student' + (students.length === 1 ? '' : 's') + ' ✓', 'ok');
+      }
     }).catch(function (err) {
       setImportStatus('Import failed: ' + (err && err.message ? err.message : err), 'error');
     });
@@ -1097,10 +1105,12 @@ window.NameDeck = window.NameDeck || {};
         // Nothing downloaded — surface the real reason instead of silently showing avatars.
         setImportStatus('Found ' + total + ' student' + (total === 1 ? '' : 's') +
           ' but couldn’t download any photos. ' +
-          (firstError || 'The photos may not be accessible — pick a "(File responses)" folder.'), 'error');
+          (firstError || 'The photos may not be accessible.'), 'error');
+      } else if (ok < total) {
+        setImportStatus('Imported ' + ok + ' of ' + total + '. ' + (total - ok) + ' photo' + ((total - ok) === 1 ? '' : 's') +
+          ' failed — ' + (firstError || 'not accessible') + '.', 'error');
       } else {
-        setImportStatus('Imported ' + ok + ' of ' + total + ' student' + (total === 1 ? '' : 's') +
-          (ok < total ? ' (some photos couldn’t be downloaded)' : '') + ' ✓', ok < total ? '' : 'ok');
+        setImportStatus('Imported ' + total + ' student' + (total === 1 ? '' : 's') + ' ✓', 'ok');
       }
     };
     students.forEach(function (s) {

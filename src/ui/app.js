@@ -382,8 +382,9 @@
     }
     if (isNative()) { startNativeGoogleImport(); return; } // native: sign in via the real browser
     setImportStatus('Connecting to Google…', '');
-    ND.googleImport.run(function (msg) { setImportStatus(msg, ''); }).then(function (students) {
-      if (!students || !students.length) { setImportStatus('No students were imported.', ''); return; }
+    ND.googleImport.run(function (msg) { setImportStatus(msg, ''); }).then(function (result) {
+      var students = (result && result.students) || [];
+      var failed = (result && result.failed) || 0;
       students.forEach(function (s) {
         var stud = { id: 'r' + (++seq), preferredName: s.preferredName, photo: null, avatarSeed: s.preferredName };
         myRoster.push(stud);
@@ -391,7 +392,15 @@
       });
       save();
       renderList();
-      setImportStatus('Imported ' + students.length + ' student' + (students.length === 1 ? '' : 's') + ' ✓', 'ok');
+      if (!students.length) {
+        setImportStatus('No photos could be imported' + (failed ? ' (' + failed + ' failed)' : '') + '. ' +
+          (result && result.firstError ? result.firstError : ''), 'error');
+      } else if (failed) {
+        setImportStatus('Imported ' + students.length + ' of ' + (students.length + failed) + '. ' + failed +
+          ' photo' + (failed === 1 ? '' : 's') + ' failed — ' + (result.firstError || 'not accessible') + '.', 'error');
+      } else {
+        setImportStatus('Imported ' + students.length + ' student' + (students.length === 1 ? '' : 's') + ' ✓', 'ok');
+      }
     }).catch(function (err) {
       setImportStatus('Import failed: ' + (err && err.message ? err.message : err), 'error');
     });
@@ -459,10 +468,12 @@
         // Nothing downloaded — surface the real reason instead of silently showing avatars.
         setImportStatus('Found ' + total + ' student' + (total === 1 ? '' : 's') +
           ' but couldn’t download any photos. ' +
-          (firstError || 'The photos may not be accessible — pick a "(File responses)" folder.'), 'error');
+          (firstError || 'The photos may not be accessible.'), 'error');
+      } else if (ok < total) {
+        setImportStatus('Imported ' + ok + ' of ' + total + '. ' + (total - ok) + ' photo' + ((total - ok) === 1 ? '' : 's') +
+          ' failed — ' + (firstError || 'not accessible') + '.', 'error');
       } else {
-        setImportStatus('Imported ' + ok + ' of ' + total + ' student' + (total === 1 ? '' : 's') +
-          (ok < total ? ' (some photos couldn’t be downloaded)' : '') + ' ✓', ok < total ? '' : 'ok');
+        setImportStatus('Imported ' + total + ' student' + (total === 1 ? '' : 's') + ' ✓', 'ok');
       }
     };
     students.forEach(function (s) {
