@@ -140,14 +140,15 @@ them exactly** (including capitalization):
 3. **Step 1** — select your **responses spreadsheet**. NameDeck then shows **which students it
    found** (e.g. "Importing 24 students: John Smith, …") so you can confirm you picked the right
    class before continuing.
-4. **Step 2** — pick a **"(File responses)" folder**. There are usually **two, and either one works**:
-   the one named after your **form** (e.g. "NameDeck information (File responses)") or the one named
-   after your **photo question** ("Your Photo (File responses)") nested inside it — NameDeck searches
-   subfolders automatically, so don't worry about which you choose. One tap grabs every photo.
-   - *Prefer to pick photos individually?* On a **computer**, open the folder and **Ctrl-click
-     (Windows) / ⌘-click (Mac)** to select several. On a **phone**, **tap each photo** so a checkmark
-     appears, then tap **Select**. (Picking the folder is far easier, though.)
-   - *List vs. grid view in the picker doesn't matter* — use whichever's easier to navigate.
+4. **Step 2** — pick the **"Your Photo (File responses)"** folder (one tap grabs every photo). Google
+   Forms makes **two** nested folders: an outer one named after your **form**, and inside it the
+   **"Your Photo (File responses)"** folder (named after the photo question) that **directly holds the
+   photos** — **pick that inner one.** *(If you renamed the photo question, the folder is named after
+   whatever you called it, still ending in "(File responses)". The outer form folder may also work,
+   but the inner one is the reliable choice.)*
+   - *Selecting photos manually?* Open the folder and multi-select — on a computer, click the first
+     and **Shift-click** the last to grab a range.
+   - *List vs. grid view doesn't matter* — use whichever's easier to navigate.
 5. NameDeck matches each name to its photo, downloads them, and adds the students — with a progress
    line as it goes.
 

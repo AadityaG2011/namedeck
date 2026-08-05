@@ -124,21 +124,27 @@
         '</div>' +
         '<div class="sheet" id="rosterSheet" hidden>' +
           '<div class="sheet-head">' +
-            '<span>My Roster</span>' +
+            '<span>My Roster <span class="roster-count" id="rosterCount"></span></span>' +
             '<button class="close" id="closeRoster" aria-label="Close roster">&times;</button>' +
           '</div>' +
           '<div class="sheet-body">' +
-            '<p class="hint">Paste or type names (one per line), or Import Photos to create a student per photo (the photo&#39;s file name becomes the name). Edit names and photos below.</p>' +
+            '<p class="hint">Paste or type names (one per line), or use an import below — for photo imports, the file name becomes the student name.</p>' +
             '<textarea id="nameInput" rows="3" placeholder="Alex Rivera&#10;Jordan Lee&#10;John Smith"></textarea>' +
             '<button class="btn" id="addNames">Add Names</button>' +
-            '<div class="add-actions">' +
+            '<div class="import-method">' +
               '<label class="btn" id="importPhotos">Import Photos' +
                 '<input type="file" id="photoImport" accept="image/*" multiple hidden /></label>' +
+              '<p class="import-caption">Pick photos — works on your phone (from your Photos or Files).</p>' +
+            '</div>' +
+            '<div class="import-method">' +
               '<label class="btn" id="importFolder">Import Folder' +
                 '<input type="file" id="folderImport" accept="image/*" webkitdirectory multiple hidden /></label>' +
+              '<p class="import-caption">Grab a whole folder at once — easiest on a computer.</p>' +
             '</div>' +
-            '<button class="btn" id="importGoogle">Import from Google</button>' +
-            '<p class="import-hint">Pick your responses spreadsheet, then any “(File responses)” folder — the one named after your form or your photo question both work.</p>' +
+            '<div class="import-method">' +
+              '<button class="btn" id="importGoogle">Import from Google</button>' +
+              '<p class="import-caption">Collect names + photos with a Google Form.</p>' +
+            '</div>' +
             '<p class="import-status" id="importStatus" hidden></p>' +
             '<p class="notice" id="storageNotice" hidden>Storage is full — new photos show now but may not be saved. Remove some students or use fewer/smaller photos.</p>' +
             '<div class="roster-list" id="rosterList"></div>' +
@@ -481,6 +487,8 @@
 
   function renderList() {
     var el = document.querySelector('#rosterList');
+    var countEl = document.querySelector('#rosterCount');
+    if (countEl) countEl.textContent = myRoster.length ? '(' + myRoster.length + ')' : '';
     if (!myRoster.length) {
       el.innerHTML = '<div class="empty">No students yet — add names or import photos above.</div>';
       return;

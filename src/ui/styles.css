@@ -123,16 +123,17 @@ body {
 .sheet-head, .sheet-foot { display: flex; align-items: center; padding: 14px 16px; background: var(--card); }
 .sheet-head { justify-content: space-between; box-shadow: 0 1px 0 var(--line); }
 .sheet-head span { font-weight: 800; font-size: 17px; }
+.sheet-head .roster-count { font-weight: 600; font-size: 14px; color: var(--muted); }
 .sheet-foot { justify-content: flex-end; gap: 10px; box-shadow: 0 -1px 0 var(--line); }
 .sheet-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
 .hint { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0 0 10px; }
 #nameInput { width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px;
   font: inherit; resize: vertical; }
 #addNames { width: 100%; margin-top: 10px; }
-.add-actions { display: flex; gap: 8px; margin-top: 8px; }
-.add-actions .btn { flex: 1; text-align: center; }
-#importGoogle { width: 100%; margin-top: 8px; }
-.import-hint { margin: 5px 0 0; font-size: 11.5px; color: var(--muted); text-align: center; }
+/* Each import option: a full-width button with a one-line caption explaining when to use it. */
+.import-method { margin-top: 12px; }
+.import-method .btn { display: block; width: 100%; text-align: center; }
+.import-caption { margin: 4px 0 0; font-size: 11.5px; color: var(--muted); text-align: center; line-height: 1.4; }
 .import-status { margin: 8px 0 0; padding: 8px 10px; border-radius: 10px; font-size: 12.5px;
   line-height: 1.45; background: #eef1f7; color: var(--ink); }
 .import-status[hidden] { display: none; }
