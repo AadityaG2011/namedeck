@@ -47,7 +47,7 @@
     myRoster = DEMO_ROSTER.map(function (c, i) {
       return { id: 'seed' + (i + 1), preferredName: c.name, photo: null, wiki: c.wiki, avatarSeed: c.name };
     });
-    ND.rosterStore.save(myRoster);
+    ND.rosterStore.saveMeta(myRoster);
     ND.rosterStore.markSeeded();
   }
 
@@ -142,6 +142,10 @@
               '<p class="import-caption">Grab a whole folder at once — easiest on a computer.</p>' +
             '</div>' +
             '<div class="import-method">' +
+              '<button class="btn" id="addPreferredNames">Add Preferred Names</button>' +
+              '<p class="import-caption">Imported photos already? Pick your Google Form’s responses sheet to swap in each student’s preferred name.</p>' +
+            '</div>' +
+            '<div class="import-method">' +
               '<button class="btn" id="importGoogle">Import from Google</button>' +
               '<p class="import-caption">Collect names + photos with a Google Form.</p>' +
             '</div>' +
@@ -213,6 +217,7 @@
     document.querySelector('#photoImport').addEventListener('change', onImportPhotos);
     document.querySelector('#folderImport').addEventListener('change', onImportFolder);
     document.querySelector('#importGoogle').addEventListener('click', onImportGoogle);
+    document.querySelector('#addPreferredNames').addEventListener('click', onAddPreferredNames);
     document.querySelector('#clearRoster').addEventListener('click', clearRoster);
 
     // The roster list is re-rendered often, so listen once on the container (delegation).
@@ -318,13 +323,20 @@
   }
 
   // Turn a photo's file name into a student name: "Will Smith.jpg" -> "Will Smith".
-  // Pure, portable logic — identical on iOS; only the *source* of the name differs.
+  // Google Forms names each uploaded file "<original name> - <Student's Full Name>.<ext>" (the
+  // student's own Google account name), e.g. "IMG_0333 - Dana Prem.jpeg". So if that " - " separator
+  // is present we keep only the part after the LAST one (the name). Otherwise it's a hand-named file
+  // ("Will Smith.jpg"), which we tidy up. Pure, portable logic — identical on iOS.
   function nameFromFilename(filename) {
     var base = String(filename).replace(/^.*[\\/]/, '') // drop any folder path
       .replace(/\.[^.]+$/, '');                          // drop the extension
-    base = base.replace(/_+/g, ' ')                      // underscores -> spaces
-      .replace(/\s*\(\d+\)\s*$/, '')                     // drop a " (1)" duplicate suffix
-      .replace(/\s+/g, ' ').trim();
+    if (base.indexOf(' - ') !== -1) {                    // Google Forms download: keep the name part
+      base = base.slice(base.lastIndexOf(' - ') + 3);    // after the LAST " - " (so a UUID's hyphens are safe)
+    } else {                                             // hand-named file: tidy separators
+      base = base.replace(/_+/g, ' ')                    // underscores -> spaces
+        .replace(/\s*\(\d+\)\s*$/, '');                  // drop a " (1)" duplicate suffix
+    }
+    base = base.replace(/\s+/g, ' ').trim();
     return base || 'Student';
   }
 
@@ -357,11 +369,9 @@
       // SEAM 2 (image resize/encode): canvas on web, ImageIO/UIImage on iOS.
       fileToPhoto(file, function (dataUrl) {
         student.photo = dataUrl;
-        if (--pending === 0) {           // all decoded: persist once and refresh
-          var saved = save();            // SEAM 3 (storage): rosterStore adapter
-          renderList();
-          showStorageNotice(!saved);
-        }
+        // SEAM 3 (storage): metadata -> localStorage, the photo -> IndexedDB (see roster-store).
+        ND.rosterStore.savePhoto(student.id, dataUrl).then(function (ok) { if (!ok) showStorageNotice(true); });
+        if (--pending === 0) { save(); renderList(); } // persist metadata once + refresh
       });
     });
     renderList(); // show the new students right away (names + placeholder) while photos decode
@@ -388,7 +398,7 @@
       students.forEach(function (s) {
         var stud = { id: 'r' + (++seq), preferredName: s.preferredName, photo: null, avatarSeed: s.preferredName };
         myRoster.push(stud);
-        fileToPhoto(s.blob, function (dataUrl) { stud.photo = dataUrl; save(); renderList(); });
+        fileToPhoto(s.blob, function (dataUrl) { stud.photo = dataUrl; ND.rosterStore.savePhoto(stud.id, dataUrl); save(); renderList(); });
       });
       save();
       renderList();
@@ -405,6 +415,74 @@
       setImportStatus('Import failed: ' + (err && err.message ? err.message : err), 'error');
     });
   }
+
+  // Add preferred names: pick the Form's responses sheet (one file — works even on .edu, since only
+  // *folder* grants are blocked) and upgrade the imported filename-derived names to each student's
+  // preferred name. Photos are untouched; only labels change. See applyPreferredNames for matching.
+  function onAddPreferredNames() {
+    if (!ND.googleImport || !ND.googleImport.configured()) {
+      setImportStatus("Google isn't set up yet — add your credentials in google-import.js.", 'error');
+      return;
+    }
+    if (!myRoster.length) {
+      setImportStatus('Import photos first, then add preferred names from your sheet.', 'error');
+      return;
+    }
+    if (isNative()) { // the Picker needs Google sign-in, which won't run in the app webview
+      setImportStatus('Open NameDeck in your browser (or the installed web app) to add preferred names from a sheet.', 'error');
+      return;
+    }
+    setImportStatus('Connecting to Google…', '');
+    ND.googleImport.readNames(function (msg) { setImportStatus(msg, ''); }).then(function (names) {
+      if (!names) { setImportStatus('No sheet selected.', ''); return; } // picker cancelled
+      var res = applyPreferredNames(myRoster, names);
+      save();
+      renderList();
+      if (!res.upgraded) {
+        setImportStatus('Read ' + names.length + ' name' + (names.length === 1 ? '' : 's') +
+          ', but none matched your photos by full name — names left as-is (you can edit any by hand).', 'error');
+      } else {
+        setImportStatus('Updated ' + res.upgraded + ' name' + (res.upgraded === 1 ? '' : 's') + ' to the preferred version ✓' +
+          (res.unmatched ? ' — ' + res.unmatched + ' left as the photo’s name' : ''), 'ok');
+      }
+    }).catch(function (err) {
+      setImportStatus('Could not add names: ' + (err && err.message ? err.message : err), 'error');
+    });
+  }
+
+  // Normalize a name for comparison only: drop accents, lowercase, collapse to single-spaced words.
+  // (Turkish "Yağmur Ağı" and a plain "Yagmur Agi" compare equal — good enough as a match key, and
+  // both sides go through the same funnel so consistency, not fidelity, is what matters.)
+  function normName(s) {
+    return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+  // Upgrade imported (filename) names to the sheet's preferred names. Deliberately conservative:
+  // replace a student's name ONLY when exactly one sheet entry shares its normalized full name (so
+  // the two Emmas never cross) AND the sheet's spelling differs (e.g. proper casing / accents).
+  // Nicknames (Bob vs Robert) and anything ambiguous are left as the filename name for the teacher
+  // to edit — never a silent wrong name against a face. Returns { upgraded, unmatched }.
+  function applyPreferredNames(roster, sheetNames) {
+    var byNorm = {};
+    sheetNames.forEach(function (n) {
+      var k = normName(n);
+      if (!k) return;
+      if (!byNorm[k]) byNorm[k] = { name: n, dup: false };
+      else byNorm[k].dup = true; // same normalized name appears twice -> ambiguous, don't use it
+    });
+    var upgraded = 0, unmatched = 0;
+    roster.forEach(function (s) {
+      var hit = byNorm[normName(s.preferredName)];
+      if (hit && !hit.dup) {
+        if (hit.name !== s.preferredName) { s.preferredName = hit.name; upgraded++; }
+      } else {
+        unmatched++;
+      }
+    });
+    return { upgraded: upgraded, unmatched: unmatched };
+  }
+  // Expose the pure matcher for the test suite (it needs no Google/network to exercise the rules).
+  ND.matchPreferredNames = applyPreferredNames;
 
   // ---- Native "Import from Google" (Capacitor iOS) ----
   // Google refuses to run its sign-in inside an app's webview, so the native flow opens the
@@ -480,7 +558,7 @@
       var stud = { id: 'r' + (++seq), preferredName: s.preferredName, photo: null, avatarSeed: s.preferredName };
       myRoster.push(stud);
       ND.googleImport.downloadPhoto(s.fileId, token).then(function (blob) {
-        fileToPhoto(blob, function (dataUrl) { stud.photo = dataUrl; ok++; save(); renderList(); progress(); });
+        fileToPhoto(blob, function (dataUrl) { stud.photo = dataUrl; ND.rosterStore.savePhoto(stud.id, dataUrl); ok++; save(); renderList(); progress(); });
       }, function (err) { if (!firstError) firstError = (err && err.message) ? err.message : String(err); progress(); });
     });
     save();
@@ -548,9 +626,9 @@
     if (!file) return;
     fileToPhoto(file, function (dataUrl) {
       s.photo = dataUrl;
-      var saved = save();
+      ND.rosterStore.savePhoto(s.id, dataUrl).then(function (ok) { if (!ok) showStorageNotice(true); });
+      save();
       renderList();
-      showStorageNotice(!saved); // photos are the big items — warn if the store is full
     });
   }
   function onListClick(e) {
@@ -569,6 +647,7 @@
     var row = rm.closest('.rrow');
     var id = row && row.getAttribute('data-id');
     myRoster = myRoster.filter(function (s) { return String(s.id) !== String(id); });
+    ND.rosterStore.removePhoto(id); // drop its photo from IndexedDB too
     save();
     renderList();
   }
@@ -588,7 +667,9 @@
     }
   }
 
-  function save() { return ND.rosterStore.save(myRoster); }
+  // Persist the small roster metadata (names, etc.). Photos are saved separately to IndexedDB at
+  // the moment they're added (see savePhoto calls), so they don't ride along in every save.
+  function save() { return ND.rosterStore.saveMeta(myRoster); }
 
   function showStorageNotice(show) {
     var n = document.querySelector('#storageNotice');
@@ -822,5 +903,15 @@
 
   render();
   setupDeepLinks();    // listen for the namedeck:// handoff (native only; no-op on the web)
-  hydrateDemoPhotos(); // download + store the demo roster's portraits (no-op once they're saved)
+
+  // Photos live in IndexedDB (metadata rendered instantly above). Load them after the first paint,
+  // fill them into the roster, then hydrate any remaining demo portraits (which only touch students
+  // still without a photo).
+  ND.rosterStore.loadPhotos().then(function (photos) {
+    myRoster.forEach(function (s) { if (!s.photo && photos[s.id]) s.photo = photos[s.id]; });
+    if (!document.querySelector('#rosterSheet').hidden) renderList();
+    if (current && current.photo) swapCardPhoto(current);
+  }).catch(function () {}).then(function () {
+    hydrateDemoPhotos(); // fill in the demo roster's Wikipedia portraits (for students still without a photo)
+  });
 })();

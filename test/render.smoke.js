@@ -116,12 +116,58 @@ function fireChange(input, files) {
   ]);
   ok('import folder adds only the image file (skips notes.txt)', rowCount() === beforeFolder + 1);
 
+  // Google-Forms-style filenames "<original> - <Student Name>.<ext>": extract the name after
+  // the last " - " (these are the real names from the friend's class, including edge cases).
+  const beforeForms = rowCount();
+  fireChange(doc.querySelector('#photoImport'), [
+    new dom.window.File(['a'], 'IMG_0333 - Dana Prem.jpeg', { type: 'image/jpeg' }),
+    new dom.window.File(['b'], '6398631_9056948_25_72718368 - Shania Leubin.jpg', { type: 'image/jpeg' }),
+    new dom.window.File(['c'], 'max mracek photo - Max Mracek.jpg', { type: 'image/jpeg' }),
+    new dom.window.File(['d'], 'db1b9494-9266-45a1-8fc0-160a426b19a1 - Romy Bos.jpeg', { type: 'image/jpeg' }),
+    new dom.window.File(['e'], 'IMG_5898 - Yağmur Ağı.jpeg', { type: 'image/jpeg' }),
+    new dom.window.File(['f'], 'IMG_4536 - Kara Reed.HEIC', { type: 'image/heic' }),
+  ]);
+  ok('Forms filenames add one student per file', rowCount() === beforeForms + 6);
+  ok('extracts the name after " - " (Forms format)', rowNames().indexOf('Dana Prem') !== -1);
+  ok('extracts the name when the original part has underscores', rowNames().indexOf('Shania Leubin') !== -1);
+  ok('takes the name after the LAST " - "', rowNames().indexOf('Max Mracek') !== -1);
+  ok('handles hyphens in the leading part (UUID)', rowNames().indexOf('Romy Bos') !== -1);
+  ok('handles non-ASCII names (Yağmur Ağı)', rowNames().indexOf('Yağmur Ağı') !== -1);
+  ok('strips an uppercase .HEIC extension', rowNames().indexOf('Kara Reed') !== -1);
+
   // Google import: button present and the module loaded (unconfigured until credentials added).
   ok('Import from Google button present', !!doc.querySelector('#importGoogle'));
   ok('Google import status line present (hidden)',
      !!doc.querySelector('#importStatus') && doc.querySelector('#importStatus').hidden);
   ok('Google import module loaded',
      !!dom.window.NameDeck.googleImport && typeof dom.window.NameDeck.googleImport.configured === 'function');
+
+  // "Add preferred names" matcher (pure): upgrades to the sheet's spelling ONLY on an unambiguous
+  // full-name match — casing/accents fixed, the two Emmas never cross, nicknames left alone.
+  const match = dom.window.NameDeck.matchPreferredNames;
+  ok('preferred-name matcher is exposed', typeof match === 'function');
+  if (typeof match === 'function') {
+    const roster = [
+      { preferredName: 'robbie mungovan' }, // lowercase Google name -> proper case
+      { preferredName: 'Jose Garcia' },     // unaccented Google name -> accented preferred spelling
+      { preferredName: 'emma todd' },       // must upgrade to its OWN row, not the other Emma
+      { preferredName: 'emma caetano' },
+      { preferredName: 'Robert Smith' },    // sheet says "Bob Smith" -> nickname, must NOT match
+    ];
+    const res = match(roster, ['Robbie Mungovan', 'José García', 'Emma Caetano', 'Emma Todd', 'Bob Smith']);
+    ok('upgrades a lowercase name to proper casing', roster[0].preferredName === 'Robbie Mungovan');
+    ok('upgrades an unaccented name to the accented spelling', roster[1].preferredName === 'José García');
+    ok('keeps the two Emmas on their own rows (no cross-match)',
+       roster[2].preferredName === 'Emma Todd' && roster[3].preferredName === 'Emma Caetano');
+    ok('leaves a nickname mismatch untouched (Robert stays Robert)', roster[4].preferredName === 'Robert Smith');
+    ok('counts the nickname row as unmatched', res.unmatched === 1);
+    ok('counts the four confident upgrades', res.upgraded === 4);
+
+    // Ambiguous: the same normalized name twice in the sheet must NOT be applied to anyone.
+    const dupRoster = [{ preferredName: 'john smith' }];
+    match(dupRoster, ['John Smith', 'JOHN SMITH']);
+    ok('skips an ambiguous duplicate sheet name', dupRoster[0].preferredName === 'john smith');
+  }
 
   const expected = rowNames();
   doc.querySelector('#useRoster').click();
