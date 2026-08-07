@@ -128,31 +128,65 @@
             '<button class="close" id="closeRoster" aria-label="Close roster">&times;</button>' +
           '</div>' +
           '<div class="sheet-body">' +
-            '<p class="hint">Paste or type names (one per line), or use an import below — for photo imports, the file name becomes the student name.</p>' +
-            '<textarea id="nameInput" rows="3" placeholder="Alex Rivera&#10;Jordan Lee&#10;John Smith"></textarea>' +
-            '<button class="btn" id="addNames">Add Names</button>' +
-            '<div class="import-method">' +
-              '<label class="btn" id="importPhotos">Import Photos' +
-                '<input type="file" id="photoImport" accept="image/*" multiple hidden /></label>' +
-              '<p class="import-caption">Pick photos — works on your phone (from your Photos or Files).</p>' +
+            // API 1 — Named Photos: files/folder whose file name IS the student name.
+            '<div class="import-section">' +
+              '<h3 class="section-title">Named Photos</h3>' +
+              '<p class="section-desc">Photo files whose <b>file name is the student’s name</b>. On a phone, pick the photos; on a computer, pick the whole folder.</p>' +
+              '<div class="import-method">' +
+                '<label class="btn" id="importPhotos">Import Photos' +
+                  '<input type="file" id="photoImport" accept="image/*" multiple hidden /></label>' +
+                '<p class="import-caption">Pick photos — works on your phone (from Photos or Files).</p>' +
+              '</div>' +
+              '<div class="import-method">' +
+                '<label class="btn" id="importFolder">Import Folder' +
+                  '<input type="file" id="folderImport" accept="image/*" webkitdirectory multiple hidden /></label>' +
+                '<p class="import-caption">Grab a whole folder at once — easiest on a computer.</p>' +
+              '</div>' +
+              '<div class="import-method">' +
+                '<label class="btn" id="replaceFolder">Replace Roster with a Folder' +
+                  '<input type="file" id="replaceFolderInput" accept="image/*" webkitdirectory multiple hidden /></label>' +
+                '<p class="import-caption">Clears the roster, then loads the folder — for the “rename a file, then reload” workflow.</p>' +
+              '</div>' +
             '</div>' +
-            '<div class="import-method">' +
-              '<label class="btn" id="importFolder">Import Folder' +
-                '<input type="file" id="folderImport" accept="image/*" webkitdirectory multiple hidden /></label>' +
-              '<p class="import-caption">Grab a whole folder at once — easiest on a computer.</p>' +
+            // API 2 — Local Google: the DOWNLOADED responses sheet, matched to the photos above. No Google connection.
+            '<div class="import-section">' +
+              '<h3 class="section-title">Local Google</h3>' +
+              '<p class="section-desc">Used a Google Form? Import the photos above, then add the <b>downloaded responses sheet</b> to swap in each student’s preferred name. No Google account needed.</p>' +
+              '<div class="import-method">' +
+                '<label class="btn" id="addPreferredNames">Add Preferred Names' +
+                  '<input type="file" id="sheetImport" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden /></label>' +
+                '<p class="import-caption">Pick your downloaded responses sheet (.csv or .xlsx).</p>' +
+              '</div>' +
             '</div>' +
-            '<div class="import-method">' +
-              '<label class="btn" id="addPreferredNames">Add Preferred Names' +
-                '<input type="file" id="sheetImport" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden /></label>' +
-              '<p class="import-caption">Imported photos already? Pick your downloaded responses sheet (.csv or .xlsx) to swap in each student’s preferred name.</p>' +
-            '</div>' +
-            '<div class="import-method">' +
-              '<button class="btn" id="importGoogle">Import from Google</button>' +
-              '<p class="import-caption">Collect names + photos with a Google Form.</p>' +
+            // API 3 — Google Drive: online sign-in + picker (deprioritized; school accounts often block it).
+            '<div class="import-section">' +
+              '<h3 class="section-title">Google Drive</h3>' +
+              '<p class="section-desc">Sign in to pull names + photos straight from Google. Works best on a personal account — school accounts often block folder access.</p>' +
+              '<div class="import-method">' +
+                '<button class="btn" id="importGoogle">Import from Google</button>' +
+              '</div>' +
             '</div>' +
             '<p class="import-status" id="importStatus" hidden></p>' +
+            // Discoverability nudge shown right after a photo import (non-blocking; dismissible).
+            '<div class="callout" id="preferredCallout" hidden>' +
+              '<span class="callout-msg" id="preferredCalloutMsg"></span>' +
+              '<span class="callout-actions">' +
+                '<button class="btn tiny" id="preferredCalloutBtn">Add preferred names</button>' +
+                '<button class="callout-x" id="preferredCalloutDismiss" aria-label="Dismiss">&times;</button>' +
+              '</span>' +
+            '</div>' +
             '<p class="notice" id="storageNotice" hidden>Storage is full — new photos show now but may not be saved. Remove some students or use fewer/smaller photos.</p>' +
             '<div class="roster-list" id="rosterList"></div>' +
+            // Move / back up: export the whole roster (names + photos) as one file, or load one.
+            '<div class="import-section backup-section">' +
+              '<h3 class="section-title">Move or Back Up</h3>' +
+              '<p class="section-desc">Save your whole roster (names + photos) as a file to move it to another device — or load one here.</p>' +
+              '<div class="backup-actions">' +
+                '<button class="btn" id="exportRoster">Export File</button>' +
+                '<label class="btn" id="importRoster">Import File' +
+                  '<input type="file" id="rosterFileInput" accept=".namedeck,.json,application/json" hidden /></label>' +
+              '</div>' +
+            '</div>' +
           '</div>' +
           '<div class="sheet-foot">' +
             '<button class="btn ghost" id="clearRoster">Clear All</button>' +
@@ -214,17 +248,20 @@
     document.querySelector('#rosterBtn').addEventListener('click', toggleRoster);
     document.querySelector('#closeRoster').addEventListener('click', closeRoster);
     document.querySelector('#useRoster').addEventListener('click', closeRoster);
-    document.querySelector('#addNames').addEventListener('click', addNames);
     document.querySelector('#photoImport').addEventListener('change', onImportPhotos);
     document.querySelector('#folderImport').addEventListener('change', onImportFolder);
+    document.querySelector('#replaceFolderInput').addEventListener('change', onReplaceFolder);
     document.querySelector('#importGoogle').addEventListener('click', onImportGoogle);
     document.querySelector('#sheetImport').addEventListener('change', onSheetFilePicked);
+    document.querySelector('#preferredCalloutBtn').addEventListener('click', onCalloutAdd);
+    document.querySelector('#preferredCalloutDismiss').addEventListener('click', onCalloutDismiss);
+    document.querySelector('#exportRoster').addEventListener('click', exportRoster);
+    document.querySelector('#rosterFileInput').addEventListener('change', onRosterFilePicked);
     document.querySelector('#clearRoster').addEventListener('click', clearRoster);
 
     // The roster list is re-rendered often, so listen once on the container (delegation).
     var listEl = document.querySelector('#rosterList');
     listEl.addEventListener('input', onListInput);
-    listEl.addEventListener('change', onListChange);
     listEl.addEventListener('click', onListClick);
     listEl.addEventListener('focusout', onListFocusOut);
     listEl.addEventListener('keydown', onListKeydown);
@@ -297,9 +334,9 @@
   function openRoster() {
     clearTimers();                                    // pause the deck while editing
     document.querySelector('#settings').hidden = true;
-    document.querySelector('#nameInput').value = '';
     showStorageNotice(false);
     document.querySelector('#importStatus').hidden = true;
+    hidePreferredCallout(); // reset the nudge; it re-appears after the next photo import
     renderList();
     document.querySelector('#rosterSheet').hidden = false;
     showTransport(false);
@@ -310,17 +347,85 @@
     refreshDeck();                                    // rebuild the deck (card, or empty state)
   }
 
-  function addNames() {
-    var ta = document.querySelector('#nameInput');
-    var added = 0;
-    ta.value.split('\n').forEach(function (line) {
-      var name = line.trim();
-      if (!name) return;
-      myRoster.push({ id: 'r' + (++seq), preferredName: name, photo: null, avatarSeed: name });
-      added++;
+  // ---- Discoverability nudge: after importing photos, point teachers at the sheet-name upgrade ----
+  var calloutDismissed = false; // once dismissed/used this session, stay quiet
+  function showPreferredCallout() {
+    if (calloutDismissed) return;
+    var el = document.querySelector('#preferredCallout');
+    var msg = document.querySelector('#preferredCalloutMsg');
+    if (!el) return;
+    if (msg) msg.textContent = 'Used a Google Form? Add your responses sheet to use each student’s preferred name.';
+    el.hidden = false;
+  }
+  function hidePreferredCallout() { var el = document.querySelector('#preferredCallout'); if (el) el.hidden = true; }
+  function onCalloutAdd() { hidePreferredCallout(); document.querySelector('#sheetImport').click(); } // engaged
+  function onCalloutDismiss() { calloutDismissed = true; hidePreferredCallout(); }
+
+  // Replace Roster with a Folder: clear everything, then import the picked folder. Supports the
+  // "rename a file, then reload the whole folder" workflow as a single action.
+  function onReplaceFolder(e) {
+    var imgs = imageFilesOnly(e.target.files);
+    e.target.value = '';
+    if (!imgs.length) return;
+    var doReplace = function () { myRoster = []; ND.rosterStore.clear(); importPhotos(imgs); };
+    if (myRoster.length) {
+      askConfirm('Replace all ' + myRoster.length + ' student' + (myRoster.length === 1 ? '' : 's') +
+        ' with this folder?', 'Replace', doReplace);
+    } else { doReplace(); }
+  }
+
+  // Export the whole roster (names + photos) as one file, so it can move to another device.
+  function exportRoster() {
+    if (!myRoster.length) { setImportStatus('Nothing to export yet — add students first.', 'error'); return; }
+    ND.rosterStore.loadPhotos().then(function (photos) {
+      var data = { app: 'namedeck', version: 1, students: myRoster.map(function (s) {
+        return { preferredName: s.preferredName, avatarSeed: s.avatarSeed, weight: s.weight, wiki: s.wiki,
+          photo: s.photo || photos[s.id] || null };
+      }) };
+      var blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = 'namedeck-roster.json'; // .json is selectable in every file picker
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      setImportStatus('Exported ' + data.students.length + ' student' + (data.students.length === 1 ? '' : 's') + ' ✓', 'ok');
     });
-    ta.value = '';
-    if (added) { save(); renderList(); }
+  }
+
+  // Import a roster file (from Export above) — replaces the current roster with its contents.
+  function onRosterFilePicked(e) {
+    var file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var data = null;
+      try { data = JSON.parse(String(reader.result)); } catch (err) { /* not JSON */ }
+      if (!data || data.app !== 'namedeck' || !Array.isArray(data.students)) {
+        setImportStatus('That doesn’t look like a NameDeck roster file.', 'error');
+        return;
+      }
+      var apply = function () {
+        myRoster = [];
+        ND.rosterStore.clear();
+        data.students.forEach(function (st) {
+          var id = 'r' + (++seq);
+          var stud = { id: id, preferredName: st.preferredName || 'Student',
+            avatarSeed: st.avatarSeed || st.preferredName, weight: st.weight, wiki: st.wiki, photo: st.photo || null };
+          myRoster.push(stud);
+          if (stud.photo) ND.rosterStore.savePhoto(id, stud.photo);
+        });
+        save();
+        renderList();
+        setImportStatus('Loaded ' + myRoster.length + ' student' + (myRoster.length === 1 ? '' : 's') + ' from the file ✓', 'ok');
+      };
+      if (myRoster.length) {
+        askConfirm('Replace all ' + myRoster.length + ' student' + (myRoster.length === 1 ? '' : 's') +
+          ' with this file?', 'Replace', apply);
+      } else { apply(); }
+    };
+    reader.onerror = function () { setImportStatus('Could not read that file.', 'error'); };
+    reader.readAsText(file);
   }
 
   // Turn a photo's file name into a student name: "Will Smith.jpg" -> "Will Smith".
@@ -349,11 +454,13 @@
   }
 
   // Folder picker (webkitdirectory) returns every file in the folder, so keep images only.
-  function onImportFolder(e) {
-    var imgs = Array.prototype.slice.call(e.target.files || []).filter(function (f) {
+  function imageFilesOnly(fileList) {
+    return Array.prototype.slice.call(fileList || []).filter(function (f) {
       return /^image\//.test(f.type) || /\.(jpe?g|png|gif|webp|bmp|heic|heif|avif|tiff?)$/i.test(f.name);
     });
-    importPhotos(imgs);
+  }
+  function onImportFolder(e) {
+    importPhotos(imageFilesOnly(e.target.files));
     e.target.value = '';
   }
 
@@ -385,6 +492,7 @@
       });
     });
     renderList(); // show the new students right away (names + placeholder) while photos decode
+    showPreferredCallout(); // nudge toward the sheet-name upgrade (dismissible; quiet once used)
   }
 
   function setImportStatus(msg, kind) {
@@ -603,7 +711,7 @@
     var countEl = document.querySelector('#rosterCount');
     if (countEl) countEl.textContent = myRoster.length ? '(' + myRoster.length + ')' : '';
     if (!myRoster.length) {
-      el.innerHTML = '<div class="empty">No students yet — add names or import photos above.</div>';
+      el.innerHTML = '<div class="empty">No students yet — import photos above.</div>';
       return;
     }
     el.innerHTML = myRoster.map(function (s) {
@@ -614,8 +722,6 @@
           '<div class="rthumb">' + thumb + '</div>' +
           '<input class="rname" value="' + escapeHtml(s.preferredName) + '" aria-label="Student name" readonly />' +
           '<button class="btn tiny edit">Edit</button>' +
-          '<label class="btn tiny pick">' + (s.photo ? 'Change' : 'Photo') +
-            '<input type="file" accept="image/*" class="rphoto" hidden /></label>' +
           '<button class="btn tiny remove" aria-label="Remove">&times;</button>' +
         '</div>';
     }).join('');
@@ -641,19 +747,6 @@
     if (!s) return;
     s.preferredName = e.target.value;         // don't re-render here: it would drop the cursor
     save();
-  }
-  function onListChange(e) {
-    if (!e.target.classList || !e.target.classList.contains('rphoto')) return;
-    var s = rowStudent(e.target);
-    if (!s) return;
-    var file = e.target.files && e.target.files[0];
-    if (!file) return;
-    fileToPhoto(file, function (dataUrl) {
-      s.photo = dataUrl;
-      ND.rosterStore.savePhoto(s.id, dataUrl).then(function (ok) { if (!ok) showStorageNotice(true); });
-      save();
-      renderList();
-    });
   }
   function onListClick(e) {
     // Edit: unlock this row's name field so a mistyped name can be corrected.

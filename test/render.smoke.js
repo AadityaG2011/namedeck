@@ -80,14 +80,24 @@ function fireChange(input, files) {
   doc.querySelector('#closeSettings').click();
   ok('close button hides the settings panel', doc.querySelector('#settings').hidden);
 
-  // --- C. Build a roster: the empty-state button opens it; add names, edit, import ---
+  // --- C. Build a roster: the empty-state button opens it; import photos (Named Photos), edit ---
   doc.querySelector('#emptyAdd').click();
   ok('empty-state button opens the roster panel', !doc.querySelector('#rosterSheet').hidden);
 
-  doc.querySelector('#nameInput').value = 'Alice Johnson\nBob Smith\nCara Diaz';
-  doc.querySelector('#addNames').click();
-  ok('adding names creates a row per student', rowCount() === 3);
-  ok('a named student with no photo shows a fallback avatar', !!doc.querySelector('#rosterList .rthumb svg'));
+  // Named Photos: one student per file, name from the filename.
+  fireChange(doc.querySelector('#photoImport'), [
+    new dom.window.File(['a'], 'Alice Johnson.jpg', { type: 'image/jpeg' }),
+    new dom.window.File(['b'], 'Bob Smith.jpg', { type: 'image/jpeg' }),
+    new dom.window.File(['c'], 'Cara Diaz.jpg', { type: 'image/jpeg' }),
+  ]);
+  ok('importing photos creates a row per student', rowCount() === 3);
+  ok('a student with no decoded photo shows a fallback avatar', !!doc.querySelector('#rosterList .rthumb svg'));
+
+  // Post-import callout (discoverability). "Add preferred names" hides it for now but does NOT
+  // permanently dismiss it (a later import reminds again); the ✕ dismisses for good.
+  ok('preferred-names callout appears after importing photos', !doc.querySelector('#preferredCallout').hidden);
+  doc.querySelector('#preferredCalloutBtn').click(); // "Add preferred names" -> hide for now
+  ok('the Add-names button hides the callout', doc.querySelector('#preferredCallout').hidden);
 
   // Edit button: names are locked until Edit is clicked, then a typo can be corrected.
   const firstRow = doc.querySelector('#rosterList .rrow');
@@ -97,9 +107,12 @@ function fireChange(input, files) {
   ok('Edit unlocks the name field', !nameField.hasAttribute('readonly'));
   nameField.value = 'Alicia Johnson';
   nameField.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
-  doc.querySelector('#nameInput').value = 'Dana Fox';
-  doc.querySelector('#addNames').click(); // forces a re-render from the data
-  ok('edited name persists in the roster', rowNames()[0] === 'Alicia Johnson');
+  // Import one more — forces a renderList from myRoster, proving the edit persisted to the data.
+  fireChange(doc.querySelector('#photoImport'), [new dom.window.File(['d'], 'Dana Fox.jpg', { type: 'image/jpeg' })]);
+  ok('edited name persists in the roster (survives a re-render)', rowNames()[0] === 'Alicia Johnson');
+  ok('callout returns on a later import (Add did not permanently dismiss it)', !doc.querySelector('#preferredCallout').hidden);
+  doc.querySelector('#preferredCalloutDismiss').click(); // ✕ -> dismiss for good
+  ok('the dismiss (✕) button hides the callout', doc.querySelector('#preferredCallout').hidden);
 
   // Import Photos: one student per file, name from the filename.
   const before = rowCount();
@@ -110,6 +123,7 @@ function fireChange(input, files) {
   ok('import photos adds one student per file', rowCount() === before + 2);
   ok('import derives the name from the file name', rowNames().indexOf('Zoe Martin') !== -1);
   ok('import cleans underscores and dup-suffix', rowNames().indexOf('liam okafor') !== -1);
+  ok('callout stays dismissed on later imports', doc.querySelector('#preferredCallout').hidden);
 
   // Import Folder: grabs the folder but ignores non-image files.
   const beforeFolder = rowCount();
@@ -325,6 +339,84 @@ function fireChange(input, files) {
      doc.querySelector('#playPause').getAttribute('aria-label') === 'Continue' &&
      !doc.querySelector('#nextCard').disabled);
   doc.querySelector('#playPause').click(); // back to playing for the section below
+
+  // --- D2. Replace-with-folder + export/import roster file: all the edge cases ---
+  doc.querySelector('#rosterBtn').click(); // open the roster panel
+  const wait = function () { return new Promise(function (r) { setTimeout(r, 10); }); };
+
+  // Replace-with-folder, cancelled: the roster is left untouched.
+  const beforeReplace = rowCount();
+  fireChange(doc.querySelector('#replaceFolderInput'), [new dom.window.File(['t'], 'Temp One.jpg', { type: 'image/jpeg' })]);
+  ok('Replace-with-folder asks to confirm', !doc.querySelector('#confirm').hidden);
+  doc.querySelector('#confirmCancel').click();
+  ok('cancelling Replace-with-folder keeps the roster', rowCount() === beforeReplace && beforeReplace > 0);
+
+  // Replace-with-folder, confirmed: clears the roster, keeps only image files.
+  fireChange(doc.querySelector('#replaceFolderInput'), [
+    new dom.window.File(['a'], 'Nadia Khan.jpg', { type: 'image/jpeg' }),
+    new dom.window.File(['b'], 'Omar Reyes.jpg', { type: 'image/jpeg' }),
+    new dom.window.File(['c'], 'notes.txt', { type: 'text/plain' }), // non-image, ignored
+  ]);
+  doc.querySelector('#confirmOk').click();
+  ok('Replace-with-folder clears then loads only images', rowCount() === 2 &&
+     rowNames().indexOf('Nadia Khan') !== -1 && rowNames().indexOf('Omar Reyes') !== -1);
+
+  // Export -> capture the blob (jsdom has no real object URLs, so stub it) -> parse it back.
+  const captured = [];
+  dom.window.URL.createObjectURL = function (blob) { captured.push(blob); return 'blob:test'; };
+  dom.window.URL.revokeObjectURL = function () {};
+  doc.querySelector('#exportRoster').click();
+  await wait(); // exportRoster is async (loadPhotos)
+  ok('Export produces one downloadable blob', captured.length === 1);
+  const readBlob = function (b) {
+    return b.text ? b.text() : new Promise(function (res) {
+      const r = new dom.window.FileReader(); r.onload = function () { res(String(r.result)); }; r.readAsText(b);
+    });
+  };
+  const exportedText = await readBlob(captured[0]);
+  const parsed = JSON.parse(exportedText);
+  ok('Exported file is a NameDeck roster with every student',
+     parsed.app === 'namedeck' && parsed.students.length === 2);
+
+  // Export with nothing to export -> a clear error, and no blob.
+  doc.querySelector('#clearRoster').click();
+  doc.querySelector('#confirmOk').click();
+  ok('roster is empty after Clear All', rowCount() === 0);
+  captured.length = 0;
+  doc.querySelector('#exportRoster').click();
+  await wait();
+  ok('exporting an empty roster errors and downloads nothing',
+     captured.length === 0 && /nothing to export/i.test(doc.querySelector('#importStatus').textContent));
+
+  // Replace-with-folder on an EMPTY roster: no confirmation needed, loads straight away.
+  fireChange(doc.querySelector('#replaceFolderInput'), [new dom.window.File(['s'], 'Solo Student.jpg', { type: 'image/jpeg' })]);
+  ok('Replace on an empty roster skips the confirm', doc.querySelector('#confirm').hidden);
+  ok('Replace on an empty roster loads the folder', rowCount() === 1 && rowNames()[0] === 'Solo Student');
+
+  // Import the exported file OVER a non-empty roster -> confirm -> students replaced.
+  const rosterFile = new dom.window.File([exportedText], 'namedeck-roster.json', { type: 'application/json' });
+  fireChange(doc.querySelector('#rosterFileInput'), [rosterFile]);
+  await wait(); // onRosterFilePicked reads the file async, then asks to confirm
+  ok('importing a file over a non-empty roster asks to confirm', !doc.querySelector('#confirm').hidden);
+  doc.querySelector('#confirmOk').click();
+  ok('confirming the import restores the file students', rowCount() === 2 &&
+     rowNames().indexOf('Nadia Khan') !== -1 && rowNames().indexOf('Omar Reyes') !== -1);
+
+  // A roster file that carries photos: the photo comes through and shows in the row thumbnail.
+  doc.querySelector('#clearRoster').click();
+  doc.querySelector('#confirmOk').click();
+  const photoJson = JSON.stringify({ app: 'namedeck', version: 1,
+    students: [{ preferredName: 'Photo Kid', photo: 'data:image/png;base64,iVBORw0KGgo=' }] });
+  fireChange(doc.querySelector('#rosterFileInput'), [new dom.window.File([photoJson], 'p.json', { type: 'application/json' })]);
+  await wait();
+  ok('imports a roster file that includes a photo', rowCount() === 1 && rowNames()[0] === 'Photo Kid');
+  ok('an imported photo shows in the row thumbnail', !!doc.querySelector('#rosterList .rthumb-photo'));
+
+  // A non-roster file is rejected without wiping the current roster.
+  fireChange(doc.querySelector('#rosterFileInput'), [new dom.window.File(['not json'], 'x.json', { type: 'application/json' })]);
+  await wait();
+  ok('a non-roster file is rejected without wiping the roster', rowCount() === 1);
+  doc.querySelector('#useRoster').click(); // close roster
 
   // --- E. Clearing the roster returns to the empty state ---
   doc.querySelector('#rosterBtn').click();
