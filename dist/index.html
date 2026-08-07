@@ -639,22 +639,6 @@ window.NameDeck = window.NameDeck || {};
     return out;
   }
 
-  // Just the name column, for the "add preferred names" upgrade (photos already imported from
-  // filenames). Only the name column is needed — the photo column is ignored entirely.
-  function namesFromCsv(text) {
-    var rows = parseCsv(text);
-    if (rows.length < 2) return [];
-    var header = rows[0].map(function (h) { return h.trim(); });
-    var nameCol = header.indexOf(NAME_HEADER);
-    if (nameCol < 0) throw new Error('Could not find a "' + NAME_HEADER + '" column — is that the form’s responses sheet?');
-    var out = [];
-    for (var i = 1; i < rows.length; i++) {
-      var name = (rows[i][nameCol] || '').trim();
-      if (name) out.push(name);
-    }
-    return out;
-  }
-
   // A short, human-readable preview of the names about to import (for the status line).
   function previewNames(pairs) {
     var names = pairs.map(function (p) { return p.name; });
@@ -719,31 +703,8 @@ window.NameDeck = window.NameDeck || {};
     });
   }
 
-  // Preferred-name upgrade: pick JUST the responses spreadsheet (a single file — this works even on
-  // locked-down .edu/Workspace accounts, since per-file grants are allowed; only *folder* grants are
-  // blocked) and return its list of preferred names. No photos, no download — the app matches these
-  // against the photos it already imported from filenames. Resolves with [String], or null if the
-  // teacher cancels the picker.
-  function readNames(onStatus) {
-    onStatus = onStatus || function () {};
-    if (!configured()) return Promise.reject(new Error('Google import is not configured'));
-    return ensureLibs().then(getToken).then(function (token) {
-      return buildPicker(token, {
-        title: 'Pick your Form’s responses spreadsheet',
-        view: new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
-      }).then(function (docs) {
-        var sheet = docs && docs[0];
-        if (!sheet) return null; // cancelled
-        onStatus('Reading names…');
-        return exportSheetCsv(sheet.id, token).then(namesFromCsv);
-      });
-    });
-  }
-
   NameDeck.googleImport = {
     configured: configured,
-    // Pick the responses sheet and return its preferred names (for the name-upgrade step).
-    readNames: readNames,
     // Warm up the Google libraries ahead of time (e.g. when the roster opens), so the first
     // click can open the sign-in popup within the user's tap — otherwise the async load loses
     // the tap gesture and the browser blocks the popup (you'd have to click twice).
@@ -782,6 +743,160 @@ window.NameDeck = window.NameDeck || {};
         });
       });
     }
+  };
+})();
+
+
+/* ===== src/ui/sheet-import.js ===== */
+// sheet-import.js — read a teacher's DOWNLOADED responses sheet (a local file) and pull out the
+// list of preferred names. No Google connection: this powers the "Local Google" flow, where the
+// teacher has downloaded the responses spreadsheet unchanged and just selects it.
+//
+// Two formats are handled:
+//   - CSV  — read as text and parsed directly (no dependency).
+//   - XLSX — a ZIP of XML; unzipped with fflate (loaded lazily, only when an .xlsx is picked),
+//            then the shared-strings table + first worksheet are read with the built-in DOMParser.
+// Either way we end up with a 2-D array of rows and take the "Preferred Full Name" column.
+
+window.NameDeck = window.NameDeck || {};
+
+(function () {
+  // Must match the form's name-question title (same as google-import.js NAME_HEADER).
+  var NAME_HEADER = 'Preferred Full Name';
+
+  function readText(file) {
+    if (file.text) return file.text();
+    return new Promise(function (resolve, reject) {
+      var r = new FileReader();
+      r.onload = function () { resolve(String(r.result)); };
+      r.onerror = function () { reject(r.error); };
+      r.readAsText(file);
+    });
+  }
+  function readArrayBuffer(file) {
+    if (file.arrayBuffer) return file.arrayBuffer();
+    return new Promise(function (resolve, reject) {
+      var r = new FileReader();
+      r.onload = function () { resolve(r.result); };
+      r.onerror = function () { reject(r.error); };
+      r.readAsArrayBuffer(file);
+    });
+  }
+
+  // Lazily load the vendored fflate (ZIP) library, once. Resolves with the global it exposes.
+  var fflateState = {};
+  function loadFflate() {
+    if (window.fflate) return Promise.resolve(window.fflate);
+    if (fflateState.p) return fflateState.p;
+    fflateState.p = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = 'vendor/fflate.min.js';
+      s.onload = function () { resolve(window.fflate); };
+      s.onerror = function () { fflateState.p = null; reject(new Error('Could not load the spreadsheet reader')); };
+      document.head.appendChild(s);
+    });
+    return fflateState.p;
+  }
+
+  // Minimal RFC-4180-ish CSV parser (handles quoted fields, embedded commas/newlines).
+  function parseCsv(text) {
+    var rows = [], row = [], field = '', inQ = false, i = 0, c;
+    for (; i < text.length; i++) {
+      c = text[i];
+      if (inQ) {
+        if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
+        else field += c;
+      } else if (c === '"') { inQ = true; }
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c !== '\r') { field += c; }
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    return rows;
+  }
+
+  // "B12" -> 1 (zero-based column index). Cell refs in xlsx carry their column letters.
+  function colIndex(ref) {
+    var m = /^([A-Z]+)/.exec(ref || '');
+    if (!m) return -1;
+    var s = m[1], n = 0;
+    for (var i = 0; i < s.length; i++) n = n * 26 + (s.charCodeAt(i) - 64);
+    return n - 1;
+  }
+  // Namespace-agnostic element lookup (real xlsx uses a default namespace, which a plain
+  // getElementsByTagName can miss; matching by local name in any namespace is robust).
+  function tags(node, name) {
+    return node.getElementsByTagNameNS ? node.getElementsByTagNameNS('*', name) : node.getElementsByTagName(name);
+  }
+  function allText(el) { // concatenate every <t> under an element (handles rich-text runs)
+    var ts = tags(el, 't'), out = '';
+    for (var i = 0; i < ts.length; i++) out += ts[i].textContent;
+    return out;
+  }
+  // Turn an unzipped xlsx (map of path -> Uint8Array) into a 2-D array of cell strings.
+  function rowsFromXlsx(files) {
+    var fflate = window.fflate;
+    var shared = [];
+    if (files['xl/sharedStrings.xml']) {
+      var sdoc = new DOMParser().parseFromString(fflate.strFromU8(files['xl/sharedStrings.xml']), 'application/xml');
+      var sis = tags(sdoc, 'si');
+      for (var i = 0; i < sis.length; i++) shared.push(allText(sis[i]));
+    }
+    var sheetPath = Object.keys(files)
+      .filter(function (k) { return /^xl\/worksheets\/sheet\d+\.xml$/i.test(k); })
+      .sort()[0];
+    if (!sheetPath) return [];
+    var wdoc = new DOMParser().parseFromString(fflate.strFromU8(files[sheetPath]), 'application/xml');
+    var rowEls = tags(wdoc, 'row'), rows = [];
+    for (var r = 0; r < rowEls.length; r++) {
+      var cells = tags(rowEls[r], 'c'), row = [];
+      for (var c = 0; c < cells.length; c++) {
+        var cell = cells[c], ref = cell.getAttribute('r'), ci = ref ? colIndex(ref) : c;
+        var t = cell.getAttribute('t'), val = '';
+        if (t === 'inlineStr') { val = allText(cell); }
+        else {
+          var v = tags(cell, 'v')[0], raw = v ? v.textContent : '';
+          val = (t === 's') ? (shared[parseInt(raw, 10)] || '') : raw; // 's' -> shared-strings index
+        }
+        if (ci >= 0) row[ci] = val;
+      }
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  // From a 2-D array of rows, take the "Preferred Full Name" column (skips the header row).
+  function namesFromRows(rows) {
+    if (!rows || rows.length < 2) return [];
+    var header = rows[0].map(function (h) { return (h || '').trim(); });
+    var col = header.indexOf(NAME_HEADER);
+    if (col < 0) throw new Error('Could not find a "' + NAME_HEADER + '" column — is that the form’s responses sheet?');
+    var out = [];
+    for (var i = 1; i < rows.length; i++) {
+      var n = (rows[i][col] || '').trim();
+      if (n) out.push(n);
+    }
+    return out;
+  }
+
+  function isXlsx(file) {
+    return /\.xlsx$/i.test(file.name || '') || /spreadsheetml/i.test(file.type || '');
+  }
+
+  NameDeck.sheetImport = {
+    // Read a downloaded responses sheet (CSV or XLSX) and resolve with [preferred names].
+    readFile: function (file) {
+      if (isXlsx(file)) {
+        return loadFflate()
+          .then(function () { return readArrayBuffer(file); })
+          .then(function (buf) { return namesFromRows(rowsFromXlsx(window.fflate.unzipSync(new Uint8Array(buf)))); });
+      }
+      return readText(file).then(function (text) { return namesFromRows(parseCsv(text)); });
+    },
+    // Exposed for tests (pure, no file/network needed).
+    parseCsv: parseCsv,
+    rowsFromXlsx: rowsFromXlsx,
+    namesFromRows: namesFromRows
   };
 })();
 
@@ -931,8 +1046,9 @@ window.NameDeck = window.NameDeck || {};
               '<p class="import-caption">Grab a whole folder at once — easiest on a computer.</p>' +
             '</div>' +
             '<div class="import-method">' +
-              '<button class="btn" id="addPreferredNames">Add Preferred Names</button>' +
-              '<p class="import-caption">Imported photos already? Pick your Google Form’s responses sheet to swap in each student’s preferred name.</p>' +
+              '<label class="btn" id="addPreferredNames">Add Preferred Names' +
+                '<input type="file" id="sheetImport" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden /></label>' +
+              '<p class="import-caption">Imported photos already? Pick your downloaded responses sheet (.csv or .xlsx) to swap in each student’s preferred name.</p>' +
             '</div>' +
             '<div class="import-method">' +
               '<button class="btn" id="importGoogle">Import from Google</button>' +
@@ -1006,7 +1122,7 @@ window.NameDeck = window.NameDeck || {};
     document.querySelector('#photoImport').addEventListener('change', onImportPhotos);
     document.querySelector('#folderImport').addEventListener('change', onImportFolder);
     document.querySelector('#importGoogle').addEventListener('click', onImportGoogle);
-    document.querySelector('#addPreferredNames').addEventListener('click', onAddPreferredNames);
+    document.querySelector('#sheetImport').addEventListener('change', onSheetFilePicked);
     document.querySelector('#clearRoster').addEventListener('click', clearRoster);
 
     // The roster list is re-rendered often, so listen once on the container (delegation).
@@ -1121,11 +1237,11 @@ window.NameDeck = window.NameDeck || {};
       .replace(/\.[^.]+$/, '');                          // drop the extension
     if (base.indexOf(' - ') !== -1) {                    // Google Forms download: keep the name part
       base = base.slice(base.lastIndexOf(' - ') + 3);    // after the LAST " - " (so a UUID's hyphens are safe)
-    } else {                                             // hand-named file: tidy separators
-      base = base.replace(/_+/g, ' ')                    // underscores -> spaces
-        .replace(/\s*\(\d+\)\s*$/, '');                  // drop a " (1)" duplicate suffix
+    } else {                                             // hand-named file: underscores -> spaces
+      base = base.replace(/_+/g, ' ');
     }
-    base = base.replace(/\s+/g, ' ').trim();
+    base = base.replace(/\s*\(\d+\)\s*$/, '')            // drop a downloaded-duplicate " (1)" suffix (either path)
+      .replace(/\s+/g, ' ').trim();
     return base || 'Student';
   }
 
@@ -1139,7 +1255,7 @@ window.NameDeck = window.NameDeck || {};
   // Folder picker (webkitdirectory) returns every file in the folder, so keep images only.
   function onImportFolder(e) {
     var imgs = Array.prototype.slice.call(e.target.files || []).filter(function (f) {
-      return /^image\//.test(f.type) || /\.(jpe?g|png|gif|webp|bmp|heic|heif|avif)$/i.test(f.name);
+      return /^image\//.test(f.type) || /\.(jpe?g|png|gif|webp|bmp|heic|heif|avif|tiff?)$/i.test(f.name);
     });
     importPhotos(imgs);
     e.target.value = '';
@@ -1150,17 +1266,26 @@ window.NameDeck = window.NameDeck || {};
   function importPhotos(files) {
     var list = Array.prototype.slice.call(files || []);
     if (!list.length) return;
-    var pending = list.length;
+    var pending = list.length, undecoded = [];
     list.forEach(function (file) {
       var name = nameFromFilename(file.name);
       var student = { id: 'r' + (++seq), preferredName: name, photo: null, avatarSeed: name };
       myRoster.push(student);
       // SEAM 2 (image resize/encode): canvas on web, ImageIO/UIImage on iOS.
-      fileToPhoto(file, function (dataUrl) {
+      fileToPhoto(file, function (dataUrl, decoded) {
         student.photo = dataUrl;
+        if (!decoded) undecoded.push(name); // couldn't render here (usually HEIC on a desktop browser)
         // SEAM 3 (storage): metadata -> localStorage, the photo -> IndexedDB (see roster-store).
         ND.rosterStore.savePhoto(student.id, dataUrl).then(function (ok) { if (!ok) showStorageNotice(true); });
-        if (--pending === 0) { save(); renderList(); } // persist metadata once + refresh
+        if (--pending === 0) { // all decoded: persist metadata once, refresh, and warn about any HEICs
+          save();
+          renderList();
+          if (undecoded.length) { // rare now that HEIC is converted — a corrupt file, or the decoder couldn't load offline
+            setImportStatus(undecoded.length + ' photo' + (undecoded.length === 1 ? '' : 's') +
+              " couldn't be read (they may be corrupt, or a HEIC couldn't be converted): " +
+              undecoded.slice(0, 6).join(', ') + (undecoded.length > 6 ? '…' : ''), 'error');
+          }
+        }
       });
     });
     renderList(); // show the new students right away (names + placeholder) while photos decode
@@ -1205,37 +1330,36 @@ window.NameDeck = window.NameDeck || {};
     });
   }
 
-  // Add preferred names: pick the Form's responses sheet (one file — works even on .edu, since only
-  // *folder* grants are blocked) and upgrade the imported filename-derived names to each student's
-  // preferred name. Photos are untouched; only labels change. See applyPreferredNames for matching.
-  function onAddPreferredNames() {
-    if (!ND.googleImport || !ND.googleImport.configured()) {
-      setImportStatus("Google isn't set up yet — add your credentials in google-import.js.", 'error');
-      return;
-    }
+  // Add preferred names ("Local Google"): the teacher picks their DOWNLOADED responses sheet (.csv
+  // or .xlsx — no Google connection, works offline and on .edu), and we upgrade the imported
+  // filename-derived names to each student's preferred name. Photos are untouched; only labels
+  // change. See sheet-import.js for the file reading and applyPreferredNames for the matching.
+  function onSheetFilePicked(e) {
+    var file = e.target.files && e.target.files[0];
+    e.target.value = ''; // let the same file be re-picked later
+    if (!file) return;
     if (!myRoster.length) {
       setImportStatus('Import photos first, then add preferred names from your sheet.', 'error');
       return;
     }
-    if (isNative()) { // the Picker needs Google sign-in, which won't run in the app webview
-      setImportStatus('Open NameDeck in your browser (or the installed web app) to add preferred names from a sheet.', 'error');
-      return;
-    }
-    setImportStatus('Connecting to Google…', '');
-    ND.googleImport.readNames(function (msg) { setImportStatus(msg, ''); }).then(function (names) {
-      if (!names) { setImportStatus('No sheet selected.', ''); return; } // picker cancelled
+    setImportStatus('Reading names…', '');
+    ND.sheetImport.readFile(file).then(function (names) {
+      if (!names || !names.length) {
+        setImportStatus('No names found in that file — is it the form’s responses sheet?', 'error');
+        return;
+      }
       var res = applyPreferredNames(myRoster, names);
       save();
       renderList();
       if (!res.upgraded) {
         setImportStatus('Read ' + names.length + ' name' + (names.length === 1 ? '' : 's') +
-          ', but none matched your photos by full name — names left as-is (you can edit any by hand).', 'error');
+          ', but none matched your photos by name — names left as-is (you can edit any by hand).', 'error');
       } else {
         setImportStatus('Updated ' + res.upgraded + ' name' + (res.upgraded === 1 ? '' : 's') + ' to the preferred version ✓' +
           (res.unmatched ? ' — ' + res.unmatched + ' left as the photo’s name' : ''), 'ok');
       }
     }).catch(function (err) {
-      setImportStatus('Could not add names: ' + (err && err.message ? err.message : err), 'error');
+      setImportStatus('Could not read that sheet: ' + (err && err.message ? err.message : err), 'error');
     });
   }
 
@@ -1246,32 +1370,47 @@ window.NameDeck = window.NameDeck || {};
     return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
       .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   }
-  // Upgrade imported (filename) names to the sheet's preferred names. Deliberately conservative:
-  // replace a student's name ONLY when exactly one sheet entry shares its normalized full name (so
-  // the two Emmas never cross) AND the sheet's spelling differs (e.g. proper casing / accents).
-  // Nicknames (Bob vs Robert) and anything ambiguous are left as the filename name for the teacher
-  // to edit — never a silent wrong name against a face. Returns { upgraded, unmatched }.
+  // Upgrade imported (filename) names to the sheet's preferred names, in two passes:
+  //   1) exact normalized full-name match (only when that name is unique on the sheet) — fixes
+  //      casing/accents and keeps the two Emmas on their own rows.
+  //   2) last-name anchor for whatever's left — applies a nickname (robbie -> Robert Mungovan,
+  //      Brianna -> Bri Eubank) ONLY when that last name is unique among BOTH the remaining students
+  //      and the remaining sheet entries, so a wrong name is never pinned to a face.
+  // Pass 1 runs first so that, e.g., an exact "Sarah Mungovan" is consumed before pass 2 tries to
+  // resolve "robbie mungovan", leaving it unambiguous. Returns { upgraded, unmatched }.
+  function lastToken(norm) { var p = norm.split(' '); return p[p.length - 1]; }
   function applyPreferredNames(roster, sheetNames) {
-    var byNorm = {};
-    sheetNames.forEach(function (n) {
-      var k = normName(n);
-      if (!k) return;
-      if (!byNorm[k]) byNorm[k] = { name: n, dup: false };
-      else byNorm[k].dup = true; // same normalized name appears twice -> ambiguous, don't use it
-    });
-    var upgraded = 0, unmatched = 0;
-    roster.forEach(function (s) {
-      var hit = byNorm[normName(s.preferredName)];
-      if (hit && !hit.dup) {
-        if (hit.name !== s.preferredName) { s.preferredName = hit.name; upgraded++; }
-      } else {
-        unmatched++;
+    var sheet = sheetNames.map(function (n) { return { name: n, norm: normName(n), used: false }; })
+      .filter(function (e) { return e.norm; });
+    var normFreq = {};
+    sheet.forEach(function (e) { normFreq[e.norm] = (normFreq[e.norm] || 0) + 1; });
+
+    var upgraded = 0, pending = [];
+    roster.forEach(function (s) {                         // pass 1: exact, unambiguous full name
+      var k = normName(s.preferredName), e = null, i;
+      if (normFreq[k] === 1) {
+        for (i = 0; i < sheet.length; i++) { if (!sheet[i].used && sheet[i].norm === k) { e = sheet[i]; break; } }
       }
+      if (e) { e.used = true; if (e.name !== s.preferredName) { s.preferredName = e.name; upgraded++; } }
+      else pending.push(s);
+    });
+
+    var unmatched = 0;
+    pending.forEach(function (s) {                        // pass 2: unique last-name anchor (nicknames)
+      var ln = lastToken(normName(s.preferredName));
+      var cands = sheet.filter(function (e) { return !e.used && lastToken(e.norm) === ln; });
+      var rivals = pending.filter(function (o) { return lastToken(normName(o.preferredName)) === ln; });
+      if (ln && cands.length === 1 && rivals.length === 1) {
+        cands[0].used = true;
+        if (cands[0].name !== s.preferredName) { s.preferredName = cands[0].name; upgraded++; }
+      } else { unmatched++; }
     });
     return { upgraded: upgraded, unmatched: unmatched };
   }
-  // Expose the pure matcher for the test suite (it needs no Google/network to exercise the rules).
+  // Expose pure helpers for the test suite (no Google/network/image-decoding needed to exercise them).
   ND.matchPreferredNames = applyPreferredNames;
+  ND.isHeic = function (file) { return isHeic(file); };
+  ND.isTiff = function (file) { return isTiff(file); };
 
   // ---- Native "Import from Google" (Capacitor iOS) ----
   // Google refuses to run its sign-in inside an app's webview, so the native flow opens the
@@ -1465,34 +1604,104 @@ window.NameDeck = window.NameDeck || {};
     if (n) n.hidden = !show;
   }
 
-  // Read an image file, downscale it, and hand back a JPEG data URL. The cap (640px) keeps each
-  // photo small (~50–70 KB) so a full class fits in on-device (localStorage) storage, while still
-  // looking sharp on a flashcard. Never upscales past the original (scale is clamped to 1).
-  function fileToPhoto(file, cb) {
-    var reader = new FileReader();
-    reader.onload = function () {
-      var img = new Image();
-      img.onload = function () {
-        var max = 640;
-        var scale = Math.min(1, max / Math.max(img.width, img.height));
-        var w = Math.max(1, Math.round(img.width * scale));
-        var h = Math.max(1, Math.round(img.height * scale));
+  // HEIC (Apple's iPhone photo format) can't be decoded by Chrome/Firefox/Edge, only Safari. We
+  // detect it and convert to JPEG with a decoder that's loaded lazily (only when a HEIC is actually
+  // imported), so the app stays dependency-free for everyone else. On an iPhone the OS already hands
+  // us JPEG when picking from Photos, so this mainly matters for desktop / downloaded-folder imports.
+  function isHeic(file) {
+    return /^image\/hei[cf]$/i.test((file && file.type) || '') || /\.hei[cf]$/i.test((file && file.name) || '');
+  }
+  function isTiff(file) {
+    return /^image\/tiff$/i.test((file && file.type) || '') || /\.tiff?$/i.test((file && file.name) || '');
+  }
+  // Load a vendored decoder script on demand (once), resolving with the global it exposes.
+  function loadVendor(state, src, globalName) {
+    if (window[globalName]) return Promise.resolve(window[globalName]);
+    if (state.p) return state.p;
+    state.p = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = function () { resolve(window[globalName]); };
+      s.onerror = function () { state.p = null; reject(new Error('Could not load ' + src)); };
+      document.head.appendChild(s);
+    });
+    return state.p;
+  }
+  var heicState = {}, tiffState = {};
+  function readArrayBuffer(file) {
+    if (file.arrayBuffer) return file.arrayBuffer();
+    return new Promise(function (resolve, reject) {
+      var r = new FileReader();
+      r.onload = function () { resolve(r.result); };
+      r.onerror = function () { reject(r.error); };
+      r.readAsArrayBuffer(file);
+    });
+  }
+  // TIFF -> JPEG Blob: decode with UTIF into RGBA pixels, paint to a canvas, re-encode as JPEG so it
+  // flows through the normal (downscaling) pipeline like any other image.
+  function convertTiff(file) {
+    return loadVendor(tiffState, 'vendor/utif.min.js', 'UTIF').then(function (UTIF) {
+      return readArrayBuffer(file).then(function (buf) {
+        var ifds = UTIF.decode(buf);
+        UTIF.decodeImage(buf, ifds[0], ifds);
+        var page = ifds[0], rgba = UTIF.toRGBA8(page);
         var canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        try {
-          var ctx = canvas.getContext('2d');
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
-          ctx.drawImage(img, 0, 0, w, h);
-          cb(canvas.toDataURL('image/jpeg', 0.72));
-        } catch (e) {
-          cb(reader.result); // canvas unavailable — store the original
-        }
+        canvas.width = page.width; canvas.height = page.height;
+        var ctx = canvas.getContext('2d');
+        var imgData = ctx.createImageData(page.width, page.height);
+        imgData.data.set(rgba);
+        ctx.putImageData(imgData, 0, 0);
+        return new Promise(function (resolve) {
+          canvas.toBlob(function (b) { resolve(b || file); }, 'image/jpeg', 0.92);
+        });
+      });
+    });
+  }
+  // Hand back a Blob the browser can actually decode: HEIC and TIFF are converted to JPEG on the fly
+  // (via lazily-loaded decoders); everything else passes straight through. Any failure falls back to
+  // the original file (which then surfaces as the "couldn't be read" notice rather than a crash).
+  function toDecodable(file) {
+    if (isHeic(file)) {
+      return loadVendor(heicState, 'vendor/heic2any.min.js', 'heic2any')
+        .then(function (heic2any) { return heic2any({ blob: file, toType: 'image/jpeg', quality: 0.82 }); })
+        .then(function (out) { return Array.isArray(out) ? out[0] : out; })
+        .catch(function () { return file; });
+    }
+    if (isTiff(file)) return convertTiff(file).catch(function () { return file; });
+    return Promise.resolve(file);
+  }
+
+  // Read an image file, downscale it, and hand back a JPEG data URL. The cap (640px) keeps each
+  // photo small (~50–70 KB) so a full class fits in on-device storage, while still looking sharp on
+  // a flashcard. Never upscales past the original (scale is clamped to 1). cb(dataUrl, decoded):
+  // decoded=false means the browser couldn't render it (we still store the original as a fallback).
+  function fileToPhoto(file, cb) {
+    toDecodable(file).then(function (blob) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var img = new Image();
+        img.onload = function () {
+          var max = 640;
+          var scale = Math.min(1, max / Math.max(img.width, img.height));
+          var w = Math.max(1, Math.round(img.width * scale));
+          var h = Math.max(1, Math.round(img.height * scale));
+          var canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          try {
+            var ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, w, h);
+            cb(canvas.toDataURL('image/jpeg', 0.72), true);
+          } catch (e) {
+            cb(reader.result, true); // canvas unavailable (e.g. tests) — the data URL is still valid
+          }
+        };
+        img.onerror = function () { cb(reader.result, false); }; // undecodable even after conversion
+        img.src = reader.result;
       };
-      img.onerror = function () { cb(reader.result); };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
+      reader.readAsDataURL(blob);
+    });
   }
 
   // ---- Flashcard ----

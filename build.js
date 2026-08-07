@@ -13,6 +13,7 @@ const jsFiles = [
   'src/core/avatar.js',
   'src/core/roster-store.js',
   'src/ui/google-import.js',
+  'src/ui/sheet-import.js',
   'src/ui/app.js',
 ];
 const js = jsFiles
@@ -75,5 +76,11 @@ fs.writeFileSync(path.join(root, 'dist/native-import.html'), nativeImportHtml);
 fs.copyFileSync(path.join(root, 'src/privacy.html'), path.join(root, 'dist/privacy.html')); // for Google/App Store
 pwaAssets.forEach(function (f) {
   fs.copyFileSync(path.join(root, 'src/pwa', f), path.join(root, 'dist', f));
+});
+// Vendored image decoders (HEIC->JPEG, TIFF->JPEG), each served on its own so it's fetched lazily
+// (only when that format is imported) and then runtime-cached by the service worker for offline use.
+fs.mkdirSync(path.join(root, 'dist/vendor'), { recursive: true });
+fs.readdirSync(path.join(root, 'src/vendor')).forEach(function (f) {
+  fs.copyFileSync(path.join(root, 'src/vendor', f), path.join(root, 'dist/vendor', f));
 });
 console.log('Built dist/index.html (' + Math.round(html.length / 1024) + ' KB) + native-import.html + privacy.html + PWA assets: ' + pwaAssets.join(', '));

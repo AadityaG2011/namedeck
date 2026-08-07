@@ -171,22 +171,6 @@ window.NameDeck = window.NameDeck || {};
     return out;
   }
 
-  // Just the name column, for the "add preferred names" upgrade (photos already imported from
-  // filenames). Only the name column is needed — the photo column is ignored entirely.
-  function namesFromCsv(text) {
-    var rows = parseCsv(text);
-    if (rows.length < 2) return [];
-    var header = rows[0].map(function (h) { return h.trim(); });
-    var nameCol = header.indexOf(NAME_HEADER);
-    if (nameCol < 0) throw new Error('Could not find a "' + NAME_HEADER + '" column — is that the form’s responses sheet?');
-    var out = [];
-    for (var i = 1; i < rows.length; i++) {
-      var name = (rows[i][nameCol] || '').trim();
-      if (name) out.push(name);
-    }
-    return out;
-  }
-
   // A short, human-readable preview of the names about to import (for the status line).
   function previewNames(pairs) {
     var names = pairs.map(function (p) { return p.name; });
@@ -251,31 +235,8 @@ window.NameDeck = window.NameDeck || {};
     });
   }
 
-  // Preferred-name upgrade: pick JUST the responses spreadsheet (a single file — this works even on
-  // locked-down .edu/Workspace accounts, since per-file grants are allowed; only *folder* grants are
-  // blocked) and return its list of preferred names. No photos, no download — the app matches these
-  // against the photos it already imported from filenames. Resolves with [String], or null if the
-  // teacher cancels the picker.
-  function readNames(onStatus) {
-    onStatus = onStatus || function () {};
-    if (!configured()) return Promise.reject(new Error('Google import is not configured'));
-    return ensureLibs().then(getToken).then(function (token) {
-      return buildPicker(token, {
-        title: 'Pick your Form’s responses spreadsheet',
-        view: new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
-      }).then(function (docs) {
-        var sheet = docs && docs[0];
-        if (!sheet) return null; // cancelled
-        onStatus('Reading names…');
-        return exportSheetCsv(sheet.id, token).then(namesFromCsv);
-      });
-    });
-  }
-
   NameDeck.googleImport = {
     configured: configured,
-    // Pick the responses sheet and return its preferred names (for the name-upgrade step).
-    readNames: readNames,
     // Warm up the Google libraries ahead of time (e.g. when the roster opens), so the first
     // click can open the sign-in popup within the user's tap — otherwise the async load loses
     // the tap gesture and the browser blocks the popup (you'd have to click twice).

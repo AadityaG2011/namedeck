@@ -8,6 +8,9 @@ const { JSDOM } = require('jsdom');
 const html = fs.readFileSync(path.join(__dirname, '..', 'dist/index.html'), 'utf8');
 const dom = new JSDOM(html, { runScripts: 'dangerously', pretendToBeVisual: true });
 const doc = dom.window.document;
+// The xlsx reader lazy-loads fflate via a <script> tag, which won't fetch in jsdom — so inject the
+// (pure-JS) vendored library directly, exactly as the browser would once it loads.
+dom.window.fflate = require(path.join(__dirname, '..', 'src/vendor/fflate.min.js'));
 
 let pass = 0, fail = 0;
 function ok(name, cond) {
@@ -126,14 +129,17 @@ function fireChange(input, files) {
     new dom.window.File(['d'], 'db1b9494-9266-45a1-8fc0-160a426b19a1 - Romy Bos.jpeg', { type: 'image/jpeg' }),
     new dom.window.File(['e'], 'IMG_5898 - Yağmur Ağı.jpeg', { type: 'image/jpeg' }),
     new dom.window.File(['f'], 'IMG_4536 - Kara Reed.HEIC', { type: 'image/heic' }),
+    new dom.window.File(['g'], 'IMG_0333 - Dana Prem (1).jpeg', { type: 'image/jpeg' }), // re-downloaded dup
   ]);
-  ok('Forms filenames add one student per file', rowCount() === beforeForms + 6);
+  ok('Forms filenames add one student per file', rowCount() === beforeForms + 7);
   ok('extracts the name after " - " (Forms format)', rowNames().indexOf('Dana Prem') !== -1);
   ok('extracts the name when the original part has underscores', rowNames().indexOf('Shania Leubin') !== -1);
   ok('takes the name after the LAST " - "', rowNames().indexOf('Max Mracek') !== -1);
   ok('handles hyphens in the leading part (UUID)', rowNames().indexOf('Romy Bos') !== -1);
   ok('handles non-ASCII names (Yağmur Ağı)', rowNames().indexOf('Yağmur Ağı') !== -1);
   ok('strips an uppercase .HEIC extension', rowNames().indexOf('Kara Reed') !== -1);
+  ok('strips a downloaded " (1)" dup suffix in the Forms path',
+     rowNames().filter(function (n) { return n === 'Dana Prem'; }).length === 2);
 
   // Google import: button present and the module loaded (unconfigured until credentials added).
   ok('Import from Google button present', !!doc.querySelector('#importGoogle'));
@@ -142,31 +148,116 @@ function fireChange(input, files) {
   ok('Google import module loaded',
      !!dom.window.NameDeck.googleImport && typeof dom.window.NameDeck.googleImport.configured === 'function');
 
-  // "Add preferred names" matcher (pure): upgrades to the sheet's spelling ONLY on an unambiguous
-  // full-name match — casing/accents fixed, the two Emmas never cross, nicknames left alone.
+  // "Add preferred names" matcher (pure): pass 1 = exact unambiguous full name (casing/accents,
+  // Emmas stay apart); pass 2 = unique last-name anchor for nicknames; ambiguous cases left alone.
   const match = dom.window.NameDeck.matchPreferredNames;
   ok('preferred-name matcher is exposed', typeof match === 'function');
   if (typeof match === 'function') {
+    // Main roster: filename (Google-account) names -> the sheet's preferred names.
     const roster = [
-      { preferredName: 'robbie mungovan' }, // lowercase Google name -> proper case
-      { preferredName: 'Jose Garcia' },     // unaccented Google name -> accented preferred spelling
-      { preferredName: 'emma todd' },       // must upgrade to its OWN row, not the other Emma
+      { preferredName: 'molly burke' },     // exact match, casing fixed -> Molly Burke
+      { preferredName: 'robbie mungovan' }, // nickname, unique last name -> Robert Mungovan
+      { preferredName: 'Brianna Eubank' },  // nickname, unique last name -> Bri Eubank
+      { preferredName: 'emma todd' },       // exact -> its OWN row, not the other Emma
       { preferredName: 'emma caetano' },
-      { preferredName: 'Robert Smith' },    // sheet says "Bob Smith" -> nickname, must NOT match
+      { preferredName: 'Jose Garcia' },     // accent-only difference -> José García
     ];
-    const res = match(roster, ['Robbie Mungovan', 'José García', 'Emma Caetano', 'Emma Todd', 'Bob Smith']);
-    ok('upgrades a lowercase name to proper casing', roster[0].preferredName === 'Robbie Mungovan');
-    ok('upgrades an unaccented name to the accented spelling', roster[1].preferredName === 'José García');
+    const res = match(roster, ['Molly Burke', 'Robert Mungovan', 'Bri Eubank', 'Emma Todd', 'Emma Caetano', 'José García']);
+    ok('exact match fixes casing (molly burke -> Molly Burke)', roster[0].preferredName === 'Molly Burke');
+    ok('last-name anchor applies a nickname (robbie -> Robert Mungovan)', roster[1].preferredName === 'Robert Mungovan');
+    ok('last-name anchor applies a nickname (Brianna -> Bri Eubank)', roster[2].preferredName === 'Bri Eubank');
     ok('keeps the two Emmas on their own rows (no cross-match)',
-       roster[2].preferredName === 'Emma Todd' && roster[3].preferredName === 'Emma Caetano');
-    ok('leaves a nickname mismatch untouched (Robert stays Robert)', roster[4].preferredName === 'Robert Smith');
-    ok('counts the nickname row as unmatched', res.unmatched === 1);
-    ok('counts the four confident upgrades', res.upgraded === 4);
+       roster[3].preferredName === 'Emma Todd' && roster[4].preferredName === 'Emma Caetano');
+    ok('exact match upgrades accents (Jose Garcia -> José García)', roster[5].preferredName === 'José García');
+    ok('reports all six as upgraded, none unmatched', res.upgraded === 6 && res.unmatched === 0);
 
-    // Ambiguous: the same normalized name twice in the sheet must NOT be applied to anyone.
+    // Safety: two students share a last name and both need a nickname match -> ambiguous, leave both.
+    const ambiguous = [{ preferredName: 'Bob Smith' }, { preferredName: 'Rob Smith' }];
+    const ambRes = match(ambiguous, ['Robert Smith', 'Bobby Smith']);
+    ok('leaves ambiguous same-last-name nicknames untouched',
+       ambiguous[0].preferredName === 'Bob Smith' && ambiguous[1].preferredName === 'Rob Smith');
+    ok('counts both ambiguous rows as unmatched', ambRes.unmatched === 2 && ambRes.upgraded === 0);
+
+    // Ordering: an exact "Sarah Mungovan" is consumed in pass 1, leaving robbie<->Robert unambiguous.
+    const shared = [{ preferredName: 'Sarah Mungovan' }, { preferredName: 'robbie mungovan' }];
+    match(shared, ['Sarah Mungovan', 'Robert Mungovan']);
+    ok('pass 1 consumes the exact match so pass 2 can resolve the nickname',
+       shared[0].preferredName === 'Sarah Mungovan' && shared[1].preferredName === 'Robert Mungovan');
+
+    // Ambiguous exact: the same normalized name twice on the sheet must NOT be applied.
     const dupRoster = [{ preferredName: 'john smith' }];
     match(dupRoster, ['John Smith', 'JOHN SMITH']);
     ok('skips an ambiguous duplicate sheet name', dupRoster[0].preferredName === 'john smith');
+  }
+
+  // HEIC detection (pure): drives whether a file gets routed through the lazy decoder. The actual
+  // HEIC->JPEG conversion needs a real browser (WASM), so only the detection is unit-tested here.
+  const isHeic = dom.window.NameDeck.isHeic;
+  ok('isHeic is exposed', typeof isHeic === 'function');
+  if (typeof isHeic === 'function') {
+    ok('detects HEIC by MIME type', isHeic({ type: 'image/heic', name: 'x' }) === true);
+    ok('detects HEIC by .HEIC extension (case-insensitive)', isHeic({ type: '', name: 'IMG_4536 - Kara Reed.HEIC' }) === true);
+    ok('detects .heif extension', isHeic({ type: '', name: 'photo.heif' }) === true);
+    ok('does not flag a JPEG', isHeic({ type: 'image/jpeg', name: 'Dana Prem.jpg' }) === false);
+    ok('does not flag a PNG', isHeic({ type: 'image/png', name: 'molly burke.png' }) === false);
+    ok('does not flag a TIFF as HEIC', isHeic({ type: 'image/tiff', name: 'scan.tiff' }) === false);
+  }
+  const isTiff = dom.window.NameDeck.isTiff;
+  ok('isTiff is exposed', typeof isTiff === 'function');
+  if (typeof isTiff === 'function') {
+    ok('detects TIFF by MIME type', isTiff({ type: 'image/tiff', name: 'x' }) === true);
+    ok('detects .tif extension', isTiff({ type: '', name: 'scan.tif' }) === true);
+    ok('detects .tiff extension', isTiff({ type: '', name: 'scan.TIFF' }) === true);
+    ok('does not flag a JPEG as TIFF', isTiff({ type: 'image/jpeg', name: 'Dana Prem.jpg' }) === false);
+    ok('does not flag a HEIC as TIFF', isTiff({ type: 'image/heic', name: 'Kara Reed.HEIC' }) === false);
+  }
+
+  // Local sheet reader (CSV + XLSX): the "Local Google" flow reads a downloaded responses sheet
+  // and returns the preferred-name column. Exercised directly (pure), then a real xlsx round-trip.
+  const sheetImport = dom.window.NameDeck.sheetImport;
+  ok('sheetImport module loaded', !!sheetImport && typeof sheetImport.readFile === 'function');
+  if (sheetImport) {
+    // CSV: header row + the "Preferred Full Name" column, with a quoted field containing a comma.
+    const csv = 'Timestamp,Preferred Full Name,Your Photo\n' +
+      '8/6 10:00,Dana Prem,http://x/id?1\n' +
+      '8/6 10:01,"Bri Eubank",http://x/id?2\n' +
+      '8/6 10:02,,http://x/id?3\n';          // blank name row is skipped
+    const csvNames = sheetImport.namesFromRows(sheetImport.parseCsv(csv));
+    ok('CSV: extracts the Preferred Full Name column', csvNames.length === 2 &&
+       csvNames[0] === 'Dana Prem' && csvNames[1] === 'Bri Eubank');
+
+    // Missing the name column -> a clear error (so the teacher knows they picked the wrong file).
+    let threw = false;
+    try { sheetImport.namesFromRows(sheetImport.parseCsv('A,B\n1,2\n')); } catch (e) { threw = true; }
+    ok('errors clearly when the name column is absent', threw);
+
+    // XLSX: build a minimal real workbook (shared strings + one worksheet) and read it back.
+    const ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+    const shared = ['Timestamp', 'Preferred Full Name', 'Your Photo', 'Robert Mungovan', 'Yağmur Ağı'];
+    const sharedXml = '<sst xmlns="' + ns + '">' +
+      shared.map(function (s) { return '<si><t>' + s + '</t></si>'; }).join('') + '</sst>';
+    const sheetXml = '<worksheet xmlns="' + ns + '"><sheetData>' +
+      '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="C1" t="s"><v>2</v></c></row>' +
+      '<row r="2"><c r="A2"><v>44000</v></c><c r="B2" t="s"><v>3</v></c></row>' +
+      '<row r="3"><c r="A3"><v>44001</v></c><c r="B3" t="s"><v>4</v></c></row>' +
+      '</sheetData></worksheet>';
+    const files = {
+      'xl/sharedStrings.xml': dom.window.fflate.strToU8(sharedXml),
+      'xl/worksheets/sheet1.xml': dom.window.fflate.strToU8(sheetXml),
+    };
+    const xrows = sheetImport.rowsFromXlsx(files);
+    ok('XLSX: resolves shared-string cells into a grid', xrows[0][1] === 'Preferred Full Name' && xrows[1][1] === 'Robert Mungovan');
+    ok('XLSX: keeps non-ASCII names intact', xrows[2][1] === 'Yağmur Ağı');
+    const xNames = sheetImport.namesFromRows(xrows);
+    ok('XLSX: name column extracted', xNames.length === 2 && xNames[0] === 'Robert Mungovan' && xNames[1] === 'Yağmur Ağı');
+
+    // Full unzip round-trip through readFile(), so unzipSync + parse + extract all run together.
+    const zipped = dom.window.fflate.zipSync(files);
+    const xlsxFile = new dom.window.File([zipped], 'responses.xlsx',
+      { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    await sheetImport.readFile(xlsxFile).then(function (names) {
+      ok('readFile() reads a real .xlsx end-to-end', names.length === 2 && names[0] === 'Robert Mungovan');
+    }).catch(function (e) { ok('readFile() reads a real .xlsx end-to-end', false); });
   }
 
   const expected = rowNames();

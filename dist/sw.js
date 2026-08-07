@@ -51,8 +51,19 @@ self.addEventListener('fetch', function (e) {
     return;
   }
 
-  // Everything else: cache-first, falling back to the network.
+  // Everything else: cache-first, falling back to the network. Successful same-origin responses
+  // (res.type === 'basic') are runtime-cached so the lazily-loaded HEIC decoder — and any other
+  // on-demand asset — keeps working offline after the first time it's fetched.
   e.respondWith(
-    caches.match(req).then(function (hit) { return hit || fetch(req); })
+    caches.match(req).then(function (hit) {
+      if (hit) return hit;
+      return fetch(req).then(function (res) {
+        if (res && res.ok && res.type === 'basic') {
+          var copy = res.clone();
+          caches.open(CACHE).then(function (c) { c.put(req, copy); });
+        }
+        return res;
+      });
+    })
   );
 });
